@@ -7,58 +7,20 @@ import wandb
 
 # ----------------- Define all experiment configs -----------------
 experiment_configs = {
-    # "fedavg_non_iid": {
-    #     "run_name": "fedavg_non_iid_alpha_0.5",
-    #     "strategy": "FedAvg",
-    #     "num_rounds": 10,
-    #     "local_epochs": 2,
-    #     "alpha": 0.5,
-    #     "num_malicious": 0,
-    #     "num_partitions": 10,
-    # },
-    # "krum_benign_non_iid": {
-    #     "run_name": "krum_benign_non_iid_alpha_0.5",
-    #     "strategy": "Krum",
-    #     "num_rounds": 10,
-    #     "local_epochs": 2,
-    #     "alpha": 0.5,
-    #     "num_malicious": 0,
-    #     "num_partitions": 10,
-    # },
-    # "krum_attack_non_iid": {
-    #     "run_name": "krum_attack_non_iid_alpha_0.5",
-    #     "strategy": "Krum",
-    #     "num_rounds": 10,
-    #     "local_epochs": 2,
-    #     "alpha": 0.5,
-    #     "num_malicious": 3,
-    #     "num_partitions": 10,
-    # },
-    # "krum_heavy_attack_non_iid": {
-    #     "run_name": "krum_attack_non_iid_alpha_0.5",
-    #     "strategy": "Krum",
-    #     "num_rounds": 10,
-    #     "local_epochs": 2,
-    #     "alpha": 0.5,
-    #     "num_malicious": 6,
-    #     "num_partitions": 10,
-    # },
-    # "fedavg_attack_non_iid": {
-    #     "run_name": "fedavg_attack_non_iid_alpha_0.5",
-    #     "strategy": "FedAvg",
-    #     "num_rounds": 10,
-    #     "local_epochs": 2,
-    #     "alpha": 0.5,
-    #     "num_malicious": 3,
-    #     "num_partitions": 10,
-    # },
-    "krum_plaintext_break_success": {
-    "run_name": "krum_plaintext_break_success_f3_n10", "strategy": "Krum", "num_rounds": 20,
-    "local_epochs": 1, "alpha": 0.5, "num_malicious": 3, "num_partitions": 10,
+    "krum_plaintext_gauss_f3_n10": {
+        "run_name": "krum_plaintext_gauss_f3_n10", "strategy": "Krum", "num_rounds": 20,
+        "local_epochs": 1, "alpha": 0.1, "num_malicious": 0, "num_partitions": 10,
+        "attack_type": "gaussian_noise", "attack_sigma": 0.1, # A subtle attack
     },
-    "krum_plaintext_break_fail": {
-        "run_name": "krum_plaintext_break_fail_f4_n10", "strategy": "Krum", "num_rounds": 20,
-        "local_epochs": 1, "alpha": 0.5, "num_malicious": 4, "num_partitions": 10,
+    "krum_plaintext_gauss_f3_n10": {
+        "run_name": "krum_plaintext_gauss_f3_n10", "strategy": "Krum", "num_rounds": 20,
+        "local_epochs": 1, "alpha": 0.1, "num_malicious": 3, "num_partitions": 10,
+        "attack_type": "gaussian_noise", "attack_sigma": 0.1, # A subtle attack
+    },
+    "krum_plaintext_gauss_f4_n10": {
+        "run_name": "krum_plaintext_gauss_f4_n10", "strategy": "Krum", "num_rounds": 20,
+        "local_epochs": 1, "alpha": 0.1, "num_malicious": 4, "num_partitions": 10,
+        "attack_type": "gaussian_noise", "attack_sigma": 0.1,
     },
 }
 # To Run individual experiments, uncomment the desired configuration below.

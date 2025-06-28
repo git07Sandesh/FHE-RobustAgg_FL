@@ -9,60 +9,16 @@ import wandb
 
 # ----------------- Define all FHE experiment configs -----------------
 he_experiment_configs = {
-    #HEFedAvg strategy
-    # "he_fedavg_benign": {
-    #     "run_name": "he_fedavg_benign_alpha_0.5",
-    #     "strategy": "HEFedAvg",
-    #     "num_rounds": 5,   # FHE is slow, starting with fewer rounds
-    #     "local_epochs": 1,
-    #     "alpha": 0.5,
-    #     "num_malicious": 0,
-    #     "num_partitions": 3, # And fewer clients
-    # },
-    # "he_fedavg_attack": {
-    #     "run_name": "he_fedavg_attack_alpha_0.5",
-    #     "strategy": "HEFedAvg",
-    #     "num_rounds": 5,
-    #     "local_epochs": 1,
-    #     "alpha": 0.5,
-    #     "num_malicious": 1, # 1 out of 3 clients is malicious
-    #     "num_partitions": 3,
-    # },
-    # # HEKrum strategy
-    # "he_krum_benign": {
-    #     "run_name": "he_krum_benign_alpha_0.5",
-    #     "strategy": "HEKrum",
-    #     "num_rounds": 5,
-    #     "local_epochs": 1,
-    #     "alpha": 0.5,
-    #     "num_malicious": 0,
-    #     "num_partitions": 3,
-    # },
-    # "he_krum_attack": {
-    #     "run_name": "he_krum_attack_alpha_0.5",
-    #     "strategy": "HEKrum",
-    #     "num_rounds": 5,
-    #     "local_epochs": 1,
-    #     "alpha": 0.5,
-    #     "num_malicious": 1,
-    #     "num_partitions": 3,
-    # },
-    # "he_krum_heavy_attack": {
-    #     "run_name": "he_krum_heavy_attack_alpha_0.5",
-    #     "strategy": "HEKrum",
-    #     "num_rounds": 5,
-    #     "local_epochs": 1,
-    #     "alpha": 0.5,
-    #     "num_malicious": 1,
-    #     "num_partitions": 3,
-    # },
-    "he_krum_break_success": {
-    "run_name": "he_krum_break_success_f3_n10", "strategy": "HEKrum", "num_rounds": 20,
-    "local_epochs": 1, "alpha": 0.5, "num_malicious": 3, "num_partitions": 10,
+
+     "he_krum_gauss_f3_n10": {
+        "run_name": "he_krum_gauss_f3_n10", "strategy": "HEKrum", "num_rounds": 20,
+        "local_epochs": 1, "alpha": 0.1, "num_malicious": 3, "num_partitions": 10,
+        "attack_type": "gaussian_noise", "attack_sigma": 0.1,
     },
-    "he_krum_break_fail": {
-        "run_name": "he_krum_break_fail_f4_n10", "strategy": "HEKrum", "num_rounds": 20,
-        "local_epochs": 1, "alpha": 0.5, "num_malicious": 4, "num_partitions": 10,
+    "he_krum_gauss_f4_n10": {
+        "run_name": "he_krum_gauss_f4_n10", "strategy": "HEKrum", "num_rounds": 20,
+        "local_epochs": 1, "alpha": 0.1, "num_malicious": 4, "num_partitions": 10,
+        "attack_type": "gaussian_noise", "attack_sigma": 0.1,
     },
 
 }

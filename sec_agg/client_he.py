@@ -1,3 +1,4 @@
+# sec_agg/client_he.py
 
 import torch
 import tenseal as ts
@@ -18,18 +19,28 @@ class HEFlowerClient(NumPyClient):
     def fit(self, parameters, config):
         set_weights(self.net, parameters)
         
-        partition_id = self.run_config.get("partition_id", -1)
-        num_malicious = self.run_config.get("num_malicious", 0)
-        is_byzantine = partition_id < num_malicious
-
+        # ALL clients train normally first
         trained_weights = train(
             self.net, self.trainloader, epochs=config["local_epochs"], device=DEVICE
         )
         
+        partition_id = self.run_config.get("partition_id", -1)
+        num_malicious = self.run_config.get("num_malicious", 0)
+        is_byzantine = partition_id < num_malicious
+
         if is_byzantine:
-            print(f"[Client {partition_id}] Byzantine client - flipping weights BEFORE encryption")
-            trained_weights = [-w for w in trained_weights]
-        
+            attack_type = self.run_config.get("attack_type", "sign_flip")
+            print(f"[Client {partition_id}] Byzantine client - applying '{attack_type}' attack BEFORE encryption")
+
+            if attack_type == "gaussian_noise":
+                sigma = self.run_config.get("attack_sigma", 0.1)
+                trained_weights = [
+                    w + np.random.normal(0, sigma, w.shape).astype(np.float32)
+                    for w in trained_weights
+                ]
+            else: # sign_flip
+                trained_weights = [-w for w in trained_weights]
+
         flat_weights = flatten_weights(trained_weights)
         
         print(f"[Client {partition_id}] Encrypting weights...")
@@ -40,7 +51,6 @@ class HEFlowerClient(NumPyClient):
         encryption_duration = time.time() - encryption_start_time
         print(f"[Client {partition_id}] Encryption took {encryption_duration:.4f}s")
         
-        # FIXED: Convert bytes to a NumPy array of uint8 for safe transport
         payload = np.frombuffer(serialized_vector, dtype=np.uint8)
         
         return [payload], len(self.trainloader.dataset), {"encryption_time": encryption_duration}
