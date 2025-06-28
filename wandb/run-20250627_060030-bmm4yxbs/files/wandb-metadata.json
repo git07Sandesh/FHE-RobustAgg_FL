@@ -1,0 +1,31 @@
+{
+  "os":  "macOS-10.16-x86_64-i386-64bit",
+  "python":  "CPython 3.10.18",
+  "startedAt":  "2025-06-27T11:00:30.640140Z",
+  "program":  "/Users/sandeshbhattarai/Desktop/sec-agg/sec-agg/main_he.py",
+  "codePath":  "main_he.py",
+  "email":  "sandesh1122bhattarai@gmail.com",
+  "root":  "/Users/sandeshbhattarai/Desktop/sec-agg/sec-agg",
+  "host":  "Sandeshs-MacBook-Pro.local",
+  "executable":  "/Users/sandeshbhattarai/miniconda3/envs/flwr_env/bin/python",
+  "codePathLocal":  "main_he.py",
+  "cpu_count":  6,
+  "cpu_count_logical":  12,
+  "disk":  {
+    "/":  {
+      "total":  "499828957184",
+      "used":  "345462296576"
+    },
+    "/System/Volumes/Data":  {
+      "total":  "499828957184",
+      "used":  "345462296576"
+    }
+  },
+  "memory":  {
+    "total":  "17179869184"
+  },
+  "cpu":  {
+    "count":  6,
+    "countLogical":  12
+  }
+}
