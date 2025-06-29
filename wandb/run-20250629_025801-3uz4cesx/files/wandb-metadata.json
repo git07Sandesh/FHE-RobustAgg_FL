@@ -1,0 +1,35 @@
+{
+  "os":  "macOS-10.16-x86_64-i386-64bit",
+  "python":  "CPython 3.10.18",
+  "startedAt":  "2025-06-29T07:58:01.379352Z",
+  "program":  "/Users/sandeshbhattarai/Desktop/sec-agg/sec-agg/main_ckks.py",
+  "codePath":  "main_ckks.py",
+  "git":  {
+    "remote":  "https://github.com/git07Sandesh/FHE-RobustAgg_FL.git",
+    "commit":  "938d2513d41c1fb92652bbe91367d3d9ee462499"
+  },
+  "email":  "sandesh1122bhattarai@gmail.com",
+  "root":  "/Users/sandeshbhattarai/Desktop/sec-agg/sec-agg",
+  "host":  "Sandeshs-MacBook-Pro.local",
+  "executable":  "/Users/sandeshbhattarai/miniconda3/envs/flwr_env/bin/python",
+  "codePathLocal":  "main_ckks.py",
+  "cpu_count":  6,
+  "cpu_count_logical":  12,
+  "disk":  {
+    "/":  {
+      "total":  "499828957184",
+      "used":  "367082577920"
+    },
+    "/System/Volumes/Data":  {
+      "total":  "499828957184",
+      "used":  "367082577920"
+    }
+  },
+  "memory":  {
+    "total":  "17179869184"
+  },
+  "cpu":  {
+    "count":  6,
+    "countLogical":  12
+  }
+}
