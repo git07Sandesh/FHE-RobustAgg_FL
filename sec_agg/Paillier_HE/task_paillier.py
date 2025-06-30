@@ -5,25 +5,45 @@ import numpy as np
 
 class PaillierContext:
     """A helper class to manage Paillier keys and fixed-point precision."""
-    def __init__(self, key_size=1024, precision_bits=16):
+    def __init__(self, key_size=512):
         print(f"Generating Paillier keypair with size {key_size}...")
         self.public_key, self.private_key = paillier.generate_paillier_keypair(n_length=key_size)
-        # The precision factor is used for fixed-point encoding
-        self.precision = 2**precision_bits
         print("Paillier keypair generated.")
 
-def encode_weights(weights: np.ndarray, precision: int) -> np.ndarray:
-    """Converts a NumPy array of floats to an array of integers for Paillier."""
-    return (weights * precision).astype(int)
+def encrypt_weights(pub_key: paillier.PaillierPublicKey, weights: list) -> list:
+    """
+    Encrypts a list of NumPy arrays element-wise.
+    It explicitly casts each number to a standard Python float before encryption.
+    """
+    encrypted_layers = []
+    for layer in weights:
+        # Flatten the layer, cast each element to a Python float, then encrypt
+        # This is the key fix to prevent the TypeError
+        encrypted_flat_layer = [pub_key.encrypt(float(x)) for x in layer.flatten()]
+        
+        # Reshape it back to the original shape and store it
+        encrypted_layers.append(np.array(encrypted_flat_layer).reshape(layer.shape))
+        
+    return encrypted_layers
 
-def decode_weights(encoded_weights: np.ndarray, precision: int) -> np.ndarray:
-    """Converts a NumPy array of integers back to floats."""
-    return encoded_weights / precision
+def decrypt_weights(priv_key: paillier.PaillierPrivateKey, encrypted_weights: list) -> list:
+    """Decrypts a list of NumPy arrays of EncryptedNumbers."""
+    decrypted_layers = []
+    for layer in encrypted_weights:
+        # Decrypt each element, which will return a float due to phe's precision handling
+        decrypted_flat_layer = [priv_key.decrypt(x) for x in layer.flatten()]
+        
+        # Reshape it back and convert to a standard numpy float array
+        decrypted_layers.append(np.array(decrypted_flat_layer, dtype=np.float32).reshape(layer.shape))
+        
+    return decrypted_layers
 
-def encrypt_vector(pub_key, vector: np.ndarray):
-    """Encrypts each element of a NumPy array."""
-    return np.array([pub_key.encrypt(x) for x in vector])
+# The other two functions (encode/decode) are not strictly needed with the new `encrypt_weights`
+# but can be kept for other potential uses.
+def encode(pub_key: paillier.PaillierPublicKey, x):
+    """Encodes and encrypts a single number."""
+    return pub_key.encrypt(x, precision=1e-6)
 
-def decrypt_vector(priv_key, vector):
-    """Decrypts each element of a NumPy array of EncryptedNumbers."""
-    return np.array([priv_key.decrypt(x) for x in vector])
+def decode(priv_key: paillier.PaillierPrivateKey, x):
+    """Decrypts and decodes a single number."""
+    return priv_key.decrypt(x)

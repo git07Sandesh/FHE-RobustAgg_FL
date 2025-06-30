@@ -11,23 +11,16 @@ base_config = {
     "num_rounds": 3,
     "local_epochs": 1,
     "alpha": 0.5,
-    "num_partitions": 10,
+    "num_partitions": 3, # Starting with 5 to keep it fast
 }
 
-# --- Define all Paillier experiment configs ---
+# --- Define Paillier experiment configs ---
 paillier_experiment_configs = {
-    "paillier_fedavg_benign": {**base_config, "run_name": "paillier_fedavg_benign", "strategy": "PaillierFedAvg", "num_malicious": 0},
-    "paillier_fedavg_attack": {**base_config, "run_name": "paillier_fedavg_attack", "strategy": "PaillierFedAvg", "num_malicious": 3},
+    # "paillier_fedavg_benign": {**base_config, "run_name": "paillier_fedavg_benign", "strategy": "PaillierFedAvg", "num_malicious": 0},
+    "paillier_fedavg_attack": {**base_config, "run_name": "paillier_fedavg_attack", "strategy": "PaillierFedAvg", "num_malicious": 1},
 
     "paillier_trimmedmean_benign": {**base_config, "run_name": "paillier_trimmedmean_benign", "strategy": "PaillierTrimmedMean", "num_malicious": 0},
-    "paillier_trimmedmean_attack": {**base_config, "run_name": "paillier_trimmedmean_attack", "strategy": "PaillierTrimmedMean", "num_malicious": 3},
-    
-    # --- New Krum and MultiKrum configs ---
-    "paillier_krum_benign": {**base_config, "run_name": "paillier_krum_benign", "strategy": "PaillierKrum", "num_malicious": 0},
-    "paillier_krum_attack": {**base_config, "run_name": "paillier_krum_attack", "strategy": "PaillierKrum", "num_malicious": 3},
-    
-    "paillier_multikrum_benign": {**base_config, "run_name": "paillier_multikrum_benign", "strategy": "PaillierMultiKrum", "num_malicious": 0},
-    "paillier_multikrum_attack": {**base_config, "run_name": "paillier_multikrum_attack", "strategy": "PaillierMultiKrum", "num_malicious": 3},
+    "paillier_trimmedmean_attack": {**base_config, "run_name": "paillier_trimmedmean_attack", "strategy": "PaillierTrimmedMean", "num_malicious": 1},
 }
 
 # --- Runner script ---
@@ -47,8 +40,6 @@ for FLWR_RUN, run_config in paillier_experiment_configs.items():
         num_clients=run_config["num_partitions"],
         config=ServerConfig(num_rounds=run_config["num_rounds"]),
         strategy=strategy,
-        # Note: The evaluate_fn in the strategy handles central evaluation,
-        # so client_resources is not strictly needed for GPU if the server has one.
     )
     end_time = time.time()
     elapsed_time = end_time - start_time
