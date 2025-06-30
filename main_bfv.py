@@ -7,15 +7,18 @@ from sec_agg.BFV_HE.server_bfv import build_strategy_bfv
 import time
 import wandb
 
-base_config = {"num_rounds": 3, "local_epochs": 1, "alpha": 0.5, "num_partitions": 5}
+base_config = {"num_rounds": 2, "local_epochs": 1, "alpha": 0.5, "num_partitions": 5}
 
 # --- Define all BFV FHE experiment configs ---
 bfv_experiment_configs = {
-    "bfv_fedavg_benign": {**base_config, "run_name": "bfv_fedavg_benign", "strategy": "BFVFedAvg", "num_malicious": 0},
-    "bfv_fedavg_attack": {**base_config, "run_name": "bfv_fedavg_attack", "strategy": "BFVFedAvg", "num_malicious": 2},
-    # Note: We are using a 'leaky' Krum for BFV for this benchmark
-    "bfv_multikrum_benign": {**base_config, "run_name": "bfv_multikrum_benign", "strategy": "BFVMultiKrum", "num_malicious": 0},
-    "bfv_multikrum_attack": {**base_config, "run_name": "bfv_multikrum_attack", "strategy": "BFVMultiKrum", "num_malicious": 2},
+    # "bfv_fedavg_benign": {**base_config, "run_name": "bfv_fedavg_benign", "strategy": "BFVFedAvg", "num_malicious": 0},
+    # "bfv_fedavg_attack": {**base_config, "run_name": "bfv_fedavg_attack", "strategy": "BFVFedAvg", "num_malicious": 1},
+
+    # "bfv_multikrum_benign": {**base_config, "run_name": "bfv_multikrum_benign", "strategy": "BFVMultiKrum", "num_malicious": 0},
+    # "bfv_multikrum_attack": {**base_config, "run_name": "bfv_multikrum_attack", "strategy": "BFVMultiKrum", "num_malicious": 1},
+    
+    "bfv_trimmedmean_benign": {**base_config, "run_name": "bfv_trimmedmean_benign", "strategy": "BFVTrimmedMean", "num_malicious": 0},
+    "bfv_trimmedmean_attack": {**base_config, "run_name": "bfv_trimmedmean_attack", "strategy": "BFVTrimmedMean", "num_malicious": 1},
 }
 
 # --- Runner script ---

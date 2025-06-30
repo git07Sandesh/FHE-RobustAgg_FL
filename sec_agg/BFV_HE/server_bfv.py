@@ -4,11 +4,10 @@ import wandb
 import torch
 import time
 import numpy as np
-from typing import List, Tuple, Optional, Dict # This was already here, which is good
+from typing import List, Tuple, Optional, Dict
 
 import tenseal as ts
 from flwr.server.strategy import FedAvg, Strategy
-# FIXED: Import the necessary types from flwr
 from flwr.server.client_proxy import ClientProxy
 from flwr.common import (
     FitRes,
@@ -36,21 +35,19 @@ class BFVFedAvg(FedAvg):
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
         if not results: return None, {}
         
-        # We need the plaintext number of examples for the final division
         num_examples_list = [res.num_examples for _, res in results]
         total_examples = sum(num_examples_list)
         if total_examples == 0: return None, {}
 
-        # 1. Decrypt each client update individually to get its encoded integer vector
-        # This is the "leaky" part of the protocol. The server learns the encoded updates.
+        # "Leaky" protocol: Decrypt all updates first
         client_updates_encoded = [np.array(ts.bfv_vector_from(self.fhe_context, parameters_to_ndarrays(res.parameters)[0].tobytes()).decrypt()) for _, res in results]
         
-        # 2. Perform the entire weighted average in PLAINTEXT on the encoded integers
+        # Perform weighted average on the plaintext encoded integers
         weighted_encoded_updates = [update * n_ex for update, n_ex in zip(client_updates_encoded, num_examples_list)]
         summed_weighted_updates = np.sum(np.array(weighted_encoded_updates), axis=0)
         averaged_encoded_vector = np.round(summed_weighted_updates / total_examples).astype(np.int64)
 
-        # 3. Decode the final averaged integer vector back to floats
+        # Decode the final result
         decoded_flat_weights = decode(averaged_encoded_vector.tolist(), self.precision_bits)
         
         new_global_weights = unflatten_weights(decoded_flat_weights, self.sample_model)
@@ -68,36 +65,79 @@ class BFVMultiKrum(FedAvg):
     def aggregate_fit(
         self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[any]
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
-        print("BFVMultiKrum: Using leaky protocol (decrypt-all)")
+        print("BFVMultiKrum: Using leaky protocol (decrypt-all-to-compute-scores)")
         
-        # 1. Decrypt all client updates to get the encoded integer vectors
         client_updates_encoded = [np.array(ts.bfv_vector_from(self.fhe_context, parameters_to_ndarrays(res.parameters)[0].tobytes()).decrypt()) for _, res in results]
         
-        # 2. Compute plaintext scores on the ENCODED vectors
         n_clients = len(client_updates_encoded)
         scores = []
         for i in range(n_clients):
-            dist_sum = 0
-            for j in range(n_clients):
-                if i == j: continue
-                dist_sum += np.linalg.norm(client_updates_encoded[i] - client_updates_encoded[j]) ** 2
+            dist_sum = sum(np.linalg.norm(client_updates_encoded[i] - client_updates_encoded[j]) ** 2 for j in range(n_clients) if i != j)
             scores.append(dist_sum)
             
-        # 3. Select clients
         indexed_scores = sorted(enumerate(scores), key=lambda x: x[1])
         indices_to_keep = [idx for idx, _ in indexed_scores[:self.num_clients_to_keep]]
         print(f"BFVMultiKrum selected clients: {indices_to_keep}")
         
-        # 4. Average the ENCODED updates of the selected clients in PLAINTEXT
         selected_updates_encoded = [client_updates_encoded[i] for i in indices_to_keep]
         averaged_encoded_vector = np.mean(np.array(selected_updates_encoded), axis=0).astype(np.int64)
 
-        # 5. Decode the final averaged integer vector back to floats
         decoded_flat_weights = decode(averaged_encoded_vector.tolist(), self.precision_bits)
         
         new_global_weights = unflatten_weights(decoded_flat_weights, self.sample_model)
         return ndarrays_to_parameters(new_global_weights), {}
-    # ==============================================================================
+
+class BFVTrimmedMean(FedAvg):
+    def __init__(self, num_malicious_clients: int, fhe_context: ts.Context, sample_model: torch.nn.Module, precision_bits: int, **kwargs):
+        super().__init__(**kwargs)
+        self.b = num_malicious_clients
+        self.fhe_context = fhe_context
+        self.sample_model = sample_model
+        self.precision_bits = precision_bits
+
+    def aggregate_fit(
+        self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[any]
+    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+        if not results: return None, {}
+
+        print("BFVTrimmedMean: Using leaky protocol (decrypt-all-to-compute-norms)")
+
+        client_updates_encoded = [np.array(ts.bfv_vector_from(self.fhe_context, parameters_to_ndarrays(res.parameters)[0].tobytes()).decrypt()) for _, res in results]
+        
+        norms = [np.linalg.norm(update) for update in client_updates_encoded]
+        
+        indexed_norms = sorted(enumerate(norms), key=lambda x: x[1])
+        
+        # --- FIXED: Simplified and Corrected Trimming Logic ---
+        
+        num_to_trim = self.b
+        num_results = len(results)
+
+        # Only trim if we have enough clients AND we are in an attack scenario
+        if num_results > 2 * num_to_trim and num_to_trim > 0:
+            untrimmed_indices = [i for i, _ in indexed_norms]
+            indices_to_keep = untrimmed_indices[num_to_trim : -num_to_trim]
+            print(f"BFVTrimmedMean trimmed {2 * num_to_trim} clients, keeping {len(indices_to_keep)}.")
+        else:
+            # In all other cases (benign run, or not enough clients), keep everyone
+            indices_to_keep = list(range(num_results))
+            print(f"BFVTrimmedMean: Not enough clients to trim, or benign run. Keeping all {len(indices_to_keep)} clients.")
+        
+        # --- End of fixed logic ---
+
+        if not indices_to_keep:
+            print("WARNING: BFVTrimmedMean ended up with no clients to keep. This should not happen.")
+            return None, {}
+
+        selected_updates_encoded = [client_updates_encoded[i] for i in indices_to_keep]
+        averaged_encoded_vector = np.mean(np.array(selected_updates_encoded), axis=0).astype(np.int64)
+        
+        decoded_flat_weights = decode(averaged_encoded_vector.tolist(), self.precision_bits)
+        
+        new_global_weights = unflatten_weights(decoded_flat_weights, self.sample_model)
+        return ndarrays_to_parameters(new_global_weights), {}
+    
+# ==============================================================================
 # The main builder function for ALL BFV strategies
 # ==============================================================================
 def build_strategy_bfv(run_config: dict) -> Tuple[Strategy, ts.Context]:
@@ -108,16 +148,16 @@ def build_strategy_bfv(run_config: dict) -> Tuple[Strategy, ts.Context]:
 
     fhe_context = get_bfv_context()
     
-    if strategy_name == "BFVMultiKrum":
+    if strategy_name in ["BFVMultiKrum", "BFVTrimmedMean"]:
         model_to_use = SmallNet()
-    else:
+    else: # BFVFedAvg
         model_to_use = Net()
     
     initial_parameters = ndarrays_to_parameters(get_weights(model_to_use))
     
     testloader = get_central_testloader()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    def evaluate(server_round: int, parameters: List[np.ndarray], _) -> Optional[Tuple[float, Dict[str, Scalar]]]:
+    def evaluate(server_round: int, parameters: List[np.ndarray], _):
         set_weights(model_to_use, parameters)
         loss, acc = test(model_to_use, testloader, device)
         wandb.log({"round": server_round, "server_loss": loss, "server_accuracy": acc})
@@ -137,6 +177,8 @@ def build_strategy_bfv(run_config: dict) -> Tuple[Strategy, ts.Context]:
 
     if strategy_name == "BFVMultiKrum":
         strategy = BFVMultiKrum(num_malicious_clients=run_config.get("num_malicious", 0), num_clients_to_keep=run_config["num_partitions"] - run_config.get("num_malicious", 0), **common_args)
+    elif strategy_name == "BFVTrimmedMean":
+        strategy = BFVTrimmedMean(num_malicious_clients=run_config.get("num_malicious", 0), **common_args)
     else: # BFVFedAvg
         strategy = BFVFedAvg(**common_args)
 

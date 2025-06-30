@@ -41,7 +41,7 @@ class BFVFlowerClient(NumPyClient):
 
 def client_fn_bfv(partition_id: int, run_config: dict, context_bytes: bytes):
     strategy = run_config.get("strategy")
-    if strategy == "BFVMultiKrum":
+    if strategy in ["BFVMultiKrum", "BFVTrimmedMean"]:
         net = SmallNet().to(DEVICE)
     else:
         net = Net().to(DEVICE)
