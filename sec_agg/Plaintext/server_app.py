@@ -20,7 +20,7 @@ from flwr.common import (
     ndarrays_to_parameters,
     parameters_to_ndarrays,
 )
-from sec_agg.Plaintext.task import Net, get_weights, get_central_testloader, set_weights, test, flatten_weights
+from sec_agg.Plaintext.task import Net, SmallNet, get_weights, get_central_testloader, set_weights, test, flatten_weights
 
 # A small helper function that was previously part of Flower's public API
 def fit_res_to_sample(fit_res: FitRes) -> Tuple[List[np.ndarray], int]:
@@ -176,7 +176,7 @@ def build_strategy(run_config: dict) -> Strategy:
     wandb.init(project="fl-baseline-research", name=run_name, reinit=True,
                settings=wandb.Settings(start_method="thread"))
 
-    net = Net()
+    net = SmallNet()
     initial_parameters = ndarrays_to_parameters(get_weights(net))
     
     testloader = get_central_testloader()
