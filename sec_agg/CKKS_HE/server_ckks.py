@@ -51,7 +51,49 @@ class CKKSFedAvg(FedAvg):
         decrypted_flat_weights = np.array(aggregated_vector.decrypt())
         new_global_weights = unflatten_weights(decrypted_flat_weights, self.sample_model)
         return ndarrays_to_parameters(new_global_weights), {}
+    
+class CKKSKrum(FedAvg):
+    def __init__(self, num_malicious_clients: int, fhe_context: ts.Context, sample_model: torch.nn.Module, **kwargs):
+        super().__init__(**kwargs)
+        self.num_malicious_clients = num_malicious_clients
+        self.fhe_context = fhe_context
+        self.sample_model = sample_model
 
+    def aggregate_fit(
+        self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
+    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+        if not results: return None, {}
+
+        client_vectors = [ts.ckks_vector_from(self.fhe_context, parameters_to_ndarrays(res.parameters)[0].tobytes()) for _, res in results]
+        n_clients = len(client_vectors)
+
+        print("Homomorphically computing pairwise squared distances for Krum...")
+        scores = []
+        for i in range(n_clients):
+            distances = []
+            # For Krum, we typically sum distances to all other clients
+            for j in range(n_clients):
+                if i == j: continue
+                distance_vec = client_vectors[i] - client_vectors[j]
+                squared_distance = distance_vec.dot(distance_vec) 
+                distances.append(squared_distance)
+            scores.append(sum(distances))
+        
+        print("Decrypting Krum scores...")
+        decrypted_scores = [score.decrypt()[0] for score in scores]
+        
+        # Find the client with the minimum score (most similar to others)
+        best_client_idx = np.argmin(decrypted_scores)
+        print(f"Krum selected client with index: {best_client_idx}")
+        
+        # Use only the selected client's update
+        selected_vector = client_vectors[best_client_idx]
+        
+        decrypted_flat_weights = np.array(selected_vector.decrypt())
+        new_global_weights = unflatten_weights(decrypted_flat_weights, self.sample_model)
+        
+        return ndarrays_to_parameters(new_global_weights), {}
+    
 class CKKSMultiKrum(FedAvg):
     def __init__(self, num_malicious_clients: int, num_clients_to_keep: int, fhe_context: ts.Context, sample_model: torch.nn.Module, **kwargs):
         super().__init__(**kwargs)
@@ -149,10 +191,7 @@ def build_strategy_ckks(run_config: dict) -> Tuple[Strategy, bytes]:
     context_bytes = fhe_context.serialize(save_secret_key=False)
 
     # MultiKrum requires the smaller model for FHE dot products.
-    if strategy_name == "CKKSMultiKrum":
-        model_to_use = SmallNet()
-    else: # CKKSFedAvg and CKKSTrimmedMean can use the larger model
-        model_to_use = Net()
+    model_to_use = SmallNet()
     print(f"✅ Server using model: {model_to_use.__class__.__name__}")
     
     initial_parameters = ndarrays_to_parameters(get_weights(model_to_use))
@@ -179,8 +218,9 @@ def build_strategy_ckks(run_config: dict) -> Tuple[Strategy, bytes]:
         "evaluate_fn": evaluate,
         "on_fit_config_fn": fit_config,
     }
-
-    if strategy_name == "CKKSMultiKrum":
+    if strategy_name == "CKKSKrum":
+        strategy = CKKSKrum(num_malicious_clients=num_malicious, **common_args)
+    elif strategy_name == "CKKSMultiKrum":
         strategy = CKKSMultiKrum(num_malicious_clients=num_malicious, num_clients_to_keep=run_config["num_partitions"] - num_malicious, **common_args)
     elif strategy_name == "CKKSTrimmedMean":
         strategy = CKKSTrimmedMean(num_malicious_clients=num_malicious, **common_args)

@@ -93,6 +93,86 @@ class PaillierTrimmedMean(FedAvg):
         decrypted_weights = decrypt_weights(self.p_context.private_key, aggregated_vector)
         return ndarrays_to_parameters(decrypted_weights), {}
 
+class PaillierKrum(FedAvg):
+    def __init__(self, num_malicious_clients: int, paillier_context: PaillierContext, sample_model: torch.nn.Module, **kwargs):
+        super().__init__(**kwargs)
+        self.num_malicious = num_malicious_clients
+        self.p_context = paillier_context
+        self.sample_model = sample_model
+
+    def compute_pairwise_distances(self, updates: List[List[np.ndarray]]) -> np.ndarray:
+        """
+        Compute pairwise squared Euclidean distances between client updates.
+        This requires decrypting the updates first (leaky but necessary for Krum).
+        """
+        n = len(updates)
+        distances = np.zeros((n, n))
+        
+        # Decrypt all updates for distance computation
+        decrypted_updates = []
+        for update in updates:
+            decrypted_update = decrypt_weights(self.p_context.private_key, update)
+            # Flatten all layers into a single vector for distance computation
+            flattened = np.concatenate([layer.flatten() for layer in decrypted_update])
+            decrypted_updates.append(flattened)
+        
+        # Compute pairwise distances
+        for i in range(n):
+            for j in range(i + 1, n):
+                dist = np.sum((decrypted_updates[i] - decrypted_updates[j]) ** 2)
+                distances[i, j] = dist
+                distances[j, i] = dist
+        
+        return distances
+
+    def aggregate_fit(
+        self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[Tuple[ClientProxy, FitRes]],
+    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+        if not results: 
+            return None, {}
+        
+        n = len(results)
+        if n <= self.num_malicious:
+            print(f"Krum: Not enough clients ({n}) for num_malicious={self.num_malicious}")
+            return None, {}
+        
+        # Extract encrypted client updates
+        client_updates = [pickle.loads(parameters_to_ndarrays(res.parameters)[0].tobytes()) for _, res in results]
+        
+        # Compute pairwise distances (requires decryption - leaky protocol)
+        distances = self.compute_pairwise_distances(client_updates)
+        
+        # For each client, compute the sum of distances to its n-f-2 closest neighbors
+        # where f is the number of malicious clients
+        num_closest = n - self.num_malicious - 2
+        if num_closest <= 0:
+            print(f"Krum: Invalid configuration - need at least {self.num_malicious + 3} clients for num_malicious={self.num_malicious}")
+            return None, {}
+        
+        scores = []
+        for i in range(n):
+            # Get distances from client i to all other clients
+            client_distances = distances[i, :]
+            # Remove distance to self (which is 0)
+            other_distances = np.concatenate([client_distances[:i], client_distances[i+1:]])
+            # Sort and take the num_closest smallest distances
+            closest_distances = np.partition(other_distances, num_closest)[:num_closest]
+            # Sum of distances to closest neighbors
+            score = np.sum(closest_distances)
+            scores.append(score)
+        
+        # Select the client with the minimum score (closest to its neighbors)
+        selected_client_idx = np.argmin(scores)
+        
+        print(f"Krum selected client {selected_client_idx} with score {scores[selected_client_idx]:.4f}")
+        
+        # Return the selected client's update (decrypt it first)
+        selected_update = client_updates[selected_client_idx]
+        decrypted_weights = decrypt_weights(self.p_context.private_key, selected_update)
+        
+        return ndarrays_to_parameters(decrypted_weights), {"krum_selected_client": selected_client_idx}
+
+
 # ==============================================================================
 # The main builder function for Paillier strategies
 # ==============================================================================
@@ -132,6 +212,8 @@ def build_strategy_paillier(run_config: dict) -> Tuple[Strategy, PaillierContext
     
     if strategy_name == "PaillierTrimmedMean":
         strategy = PaillierTrimmedMean(num_malicious_clients=num_malicious, **common_args)
+    elif strategy_name == "PaillierKrum":
+        strategy = PaillierKrum(num_malicious_clients=num_malicious, **common_args)
     else: # Default to PaillierFedAvg
         strategy = PaillierFedAvg(**common_args)
 

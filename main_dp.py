@@ -22,7 +22,7 @@ base_config = {
 dp_experiment_configs = {}
 # Test different privacy levels (lower epsilon = more privacy = more noise)
 for epsilon in [1.0, 2.0, 5.0]:
-    for strategy in ["FedAvg", "MultiKrum", "TrimmedMean"]:
+    for strategy in ["FedAvg","Krum", "MultiKrum", "TrimmedMean"]:
         run_name = f"dp_{strategy.lower()}_attack_eps_{epsilon}"
         dp_experiment_configs[run_name] = {
             **base_config, 

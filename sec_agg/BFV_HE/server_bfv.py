@@ -52,7 +52,41 @@ class BFVFedAvg(FedAvg):
         
         new_global_weights = unflatten_weights(decoded_flat_weights, self.sample_model)
         return ndarrays_to_parameters(new_global_weights), {}
+class BFVKrum(FedAvg):
+    def __init__(self, num_malicious_clients: int, fhe_context: ts.Context, sample_model: torch.nn.Module, precision_bits: int, **kwargs):
+        self.num_malicious_clients = num_malicious_clients
+        self.fhe_context = fhe_context
+        self.sample_model = sample_model
+        self.precision_bits = precision_bits
+        super().__init__(**kwargs)
 
+    def aggregate_fit(
+        self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[any]
+    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+        if not results: return None, {}
+        
+        print("BFVKrum: Using leaky protocol (decrypt-all-to-compute-scores)")
+        
+        client_updates_encoded = [np.array(ts.bfv_vector_from(self.fhe_context, parameters_to_ndarrays(res.parameters)[0].tobytes()).decrypt()) for _, res in results]
+        
+        n_clients = len(client_updates_encoded)
+        scores = []
+        for i in range(n_clients):
+            dist_sum = sum(np.linalg.norm(client_updates_encoded[i] - client_updates_encoded[j]) ** 2 for j in range(n_clients) if i != j)
+            scores.append(dist_sum)
+            
+        # Find the client with minimum score (most similar to others)
+        best_client_idx = np.argmin(scores)
+        print(f"BFVKrum selected client with index: {best_client_idx}")
+        
+        # Use only the selected client's encoded update
+        selected_update_encoded = client_updates_encoded[best_client_idx]
+        
+        decoded_flat_weights = decode(selected_update_encoded.tolist(), self.precision_bits)
+        
+        new_global_weights = unflatten_weights(decoded_flat_weights, self.sample_model)
+        return ndarrays_to_parameters(new_global_weights), {}
+    
 class BFVMultiKrum(FedAvg):
     def __init__(self, num_malicious_clients: int, num_clients_to_keep: int, fhe_context: ts.Context, sample_model: torch.nn.Module, precision_bits: int, **kwargs):
         self.num_malicious_clients = num_malicious_clients
@@ -147,11 +181,9 @@ def build_strategy_bfv(run_config: dict) -> Tuple[Strategy, ts.Context]:
     wandb.config.update(run_config)
 
     fhe_context = get_bfv_context()
-    
-    if strategy_name in ["BFVMultiKrum", "BFVTrimmedMean"]:
-        model_to_use = SmallNet()
-    else: # BFVFedAvg
-        model_to_use = Net()
+
+    model_to_use = SmallNet()
+   
     
     initial_parameters = ndarrays_to_parameters(get_weights(model_to_use))
     
@@ -174,8 +206,9 @@ def build_strategy_bfv(run_config: dict) -> Tuple[Strategy, ts.Context]:
         "evaluate_fn": evaluate, "on_fit_config_fn": fit_config,
         "precision_bits": 16
     }
-
-    if strategy_name == "BFVMultiKrum":
+    if strategy_name == "BFVKrum":
+        strategy = BFVKrum(num_malicious_clients=run_config.get("num_malicious", 0), **common_args)
+    elif strategy_name == "BFVMultiKrum":
         strategy = BFVMultiKrum(num_malicious_clients=run_config.get("num_malicious", 0), num_clients_to_keep=run_config["num_partitions"] - run_config.get("num_malicious", 0), **common_args)
     elif strategy_name == "BFVTrimmedMean":
         strategy = BFVTrimmedMean(num_malicious_clients=run_config.get("num_malicious", 0), **common_args)

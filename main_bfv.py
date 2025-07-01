@@ -13,12 +13,12 @@ base_config = {"num_rounds": 2, "local_epochs": 1, "alpha": 0.5, "num_partitions
 bfv_experiment_configs = {
     # "bfv_fedavg_benign": {**base_config, "run_name": "bfv_fedavg_benign", "strategy": "BFVFedAvg", "num_malicious": 0},
     # "bfv_fedavg_attack": {**base_config, "run_name": "bfv_fedavg_attack", "strategy": "BFVFedAvg", "num_malicious": 1},
-
+    "bfv_krum_benign": {**base_config, "run_name": "bfv_krum_benign", "strategy": "BFVKrum", "num_malicious": 0},
+    "bfv_krum_attack": {**base_config, "run_name": "bfv_krum_attack", "strategy": "BFVKrum", "num_malicious": 1},
     # "bfv_multikrum_benign": {**base_config, "run_name": "bfv_multikrum_benign", "strategy": "BFVMultiKrum", "num_malicious": 0},
     # "bfv_multikrum_attack": {**base_config, "run_name": "bfv_multikrum_attack", "strategy": "BFVMultiKrum", "num_malicious": 1},
-    
-    "bfv_trimmedmean_benign": {**base_config, "run_name": "bfv_trimmedmean_benign", "strategy": "BFVTrimmedMean", "num_malicious": 0},
-    "bfv_trimmedmean_attack": {**base_config, "run_name": "bfv_trimmedmean_attack", "strategy": "BFVTrimmedMean", "num_malicious": 1},
+    # "bfv_trimmedmean_benign": {**base_config, "run_name": "bfv_trimmedmean_benign", "strategy": "BFVTrimmedMean", "num_malicious": 0},
+    # "bfv_trimmedmean_attack": {**base_config, "run_name": "bfv_trimmedmean_attack", "strategy": "BFVTrimmedMean", "num_malicious": 1},
 }
 
 # --- Runner script ---

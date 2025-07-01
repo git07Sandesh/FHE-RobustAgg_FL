@@ -41,10 +41,7 @@ class BFVFlowerClient(NumPyClient):
 
 def client_fn_bfv(partition_id: int, run_config: dict, context_bytes: bytes):
     strategy = run_config.get("strategy")
-    if strategy in ["BFVMultiKrum", "BFVTrimmedMean"]:
-        net = SmallNet().to(DEVICE)
-    else:
-        net = Net().to(DEVICE)
+    net = SmallNet().to(DEVICE)
         
     trainloader = get_trainloader(partition_id=partition_id, num_partitions=run_config["num_partitions"], alpha=run_config["alpha"])
     context = ts.context_from(context_bytes)

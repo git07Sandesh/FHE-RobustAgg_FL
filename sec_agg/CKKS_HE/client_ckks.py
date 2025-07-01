@@ -61,10 +61,7 @@ class CKKSFlowerClient(NumPyClient):
 
 def client_fn_ckks(partition_id: int, run_config: dict, context_bytes: bytes):
     strategy = run_config.get("strategy")
-    if strategy == "CKKSMultiKrum":
-        net = SmallNet().to(DEVICE)
-    else:
-        net = Net().to(DEVICE)
+    net = SmallNet().to(DEVICE)
         
     trainloader = get_trainloader(
         partition_id=partition_id,
