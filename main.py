@@ -1,122 +1,109 @@
-from flwr.simulation import start_simulation
-from flwr.server import ServerConfig
-from sec_agg.Plaintext.client_app import client_fn as raw_client_fn
-from sec_agg.Plaintext.server_app import build_strategy
 import time
 import wandb
+from flwr.simulation import start_simulation
+from flwr.server import ServerConfig
 
-# ----------------- Define all experiment configs -----------------
-experiment_configs = {
-    "fedavg_benign": {
+# These imports depend on your project structure.
+# Assuming they are correct as in the original code.
+from sec_agg.Plaintext.client_app import client_fn as raw_client_fn
+from sec_agg.Plaintext.server_app import build_strategy
+
+# ----------------- Base Configuration -----------------
+# Define all common parameters here.
+BASE_CONFIG = {
+    "num_rounds": 10,
+    "local_epochs": 1,
+    "alpha": 0.5,
+    "num_partitions": 10,
+    "num_malicious": 3,  # Default number of malicious clients for attack scenarios
+    "attack_type": "gaussian_noise",  # Default attack type
+    "attack_sigma": 0.5
+}
+
+# ----------------- Experiment Definitions -----------------
+# Each dictionary only needs to specify what's different from the BASE_CONFIG.
+EXPERIMENTS = [
+    {
+        "run_name": "fedavg_benign_f3_n10",
+        "strategy": "FedAvg",
+        "num_malicious": 0,  # Override the base value for the benign case
+    },
+    {
         "run_name": "fedavg_attack_f3_n10",
         "strategy": "FedAvg",
-        "num_rounds": 1,
-        "local_epochs": 1,
-        "alpha": 0.5,
-        "num_malicious": 0,
-        "num_partitions": 10,
+        # Uses num_malicious=3 from BASE_CONFIG
     },
-    # "fedavg_attack": {
-    #     "run_name": "fedavg_attack_f3_n10",
-    #     "strategy": "FedAvg",
-    #     "num_rounds": 1,
-    #     "local_epochs": 1,
-    #     "alpha": 0.5,
-    #     "num_malicious": 3,
-    #     "num_partitions": 10,
-    # },
-    #     "krum_attack": {
-    #     "run_name": "krum_attack_f3_n10", 
-    #     "strategy": "Krum",
-    #     "num_rounds": 1,
-    #     "local_epochs": 1,
-    #     "alpha": 0.5,
-    #     "num_malicious": 3,
-    #     "num_partitions": 10,
-    # },
-    "multikrum_attack": {
-        "run_name": "multikrum_attack_f3_n10", "strategy": "MultiKrum", 
-        "num_rounds": 1, "local_epochs": 1, "alpha": 0.5, 
-        "num_malicious": 3, "num_partitions": 10,
+    {
+        "run_name": "krum_attack_f3_n10",
+        "strategy": "Krum",
     },
-    "trimmedmean_attack": {
-        "run_name": "trimmedmean_attack_f3_n10", "strategy": "TrimmedMean",
-        "num_rounds": 1, "local_epochs": 1, "alpha": 0.5,
-        "num_malicious": 3, "num_partitions": 10,
+    {
+        "run_name": "multikrum_attack_f3_n10",
+        "strategy": "MultiKrum",
     },
-    "coordmedian_attack": {
-        "run_name": "coordmedian_attack_f3_n10", "strategy": "CoordMedian",
-        "num_rounds": 1, "local_epochs": 1, "alpha": 0.5,
-        "num_malicious": 3, "num_partitions": 10,
+    {
+        "run_name": "trimmedmean_attack_f3_n10",
+        "strategy": "TrimmedMean",
     },
-}
-# To Run individual experiments, uncomment the desired configuration below.
-# # ----------------- Select experiment to run -----------------
-# FLWR_RUN = "krum_attack_non_iid"  # Change this to run other configs
-# run_config = experiment_configs[FLWR_RUN]
+    {
+        "run_name": "bulyan_attack_f3_n10",
+        "strategy": "Bulyan",
+        # Bulyan-specific parameters are added here
+        "bulyan_selection_size": 7,
+        "trimmed_mean_beta": 1,
+    },
+]
 
-# print(f"\n🚀 Running experiment: {FLWR_RUN}\n")
-
-# # ----------------- Client wrapper -----------------
-# def client_fn_wrapper(cid: str):
-#     partition_id = int(cid)
-#     return raw_client_fn(partition_id, run_config["num_partitions"], run_config)
-
-# # ----------------- Build and run strategy -----------------
-# strategy = build_strategy(run_config)
-
-# start_time = time.time()
-# start_simulation(
-#     client_fn=client_fn_wrapper,
-#     num_clients=run_config["num_partitions"],
-#     config=ServerConfig(num_rounds=run_config["num_rounds"]),
-#     strategy=strategy,
-# )
-
-# end_time = time.time()
-# elapsed_time = end_time - start_time
-# wandb.log({"true_runtime_seconds": elapsed_time})
-
-# print(f"⏱️ Total Simulation Time: {elapsed_time:.2f} seconds")
-
-
-#Use this to run all experiments in the config
-
-# ----------------- Client wrapper -----------------
-def client_fn_wrapper_factory(run_config):
-    def client_fn_wrapper(cid: str):
+# ----------------- Client Function Factory -----------------
+def get_client_fn(run_config):
+    """Factory to create a client_fn that closes over the run_config."""
+    def client_fn(cid: str):
+        """Flower client function."""
         partition_id = int(cid)
         return raw_client_fn(partition_id, run_config["num_partitions"], run_config)
-    return client_fn_wrapper
+    return client_fn
 
-# ----------------- Run all experiments -----------------
-for FLWR_RUN, run_config in experiment_configs.items():
-    print(f"\n🚀 Starting experiment: {FLWR_RUN}\n")
+# ----------------- Main Execution Loop -----------------
+def main():
+    """Run all defined experiments."""
+    for exp_config in EXPERIMENTS:
+        # 1. Combine base and experiment-specific configs
+        # The `**exp_config` will override any keys from `**BASE_CONFIG`
+        run_config = {**BASE_CONFIG, **exp_config}
+        
+        run_name = run_config["run_name"]
+        print(f"\n🚀 Starting experiment: {run_name}\n")
 
-    # Strategy and client_fn
-    strategy = build_strategy(run_config)
-    client_fn_wrapper = client_fn_wrapper_factory(run_config)
+        # 2. Prepare for the simulation
+        # It's assumed that `build_strategy` will initialize wandb.
+        strategy = build_strategy(run_config)
+        client_fn = get_client_fn(run_config)
+        
+        # 3. Run the simulation and time it
+        start_time = time.time()
+        start_simulation(
+            client_fn=client_fn,
+            num_clients=run_config["num_partitions"],
+            config=ServerConfig(num_rounds=run_config["num_rounds"]),
+            strategy=strategy,
+        )
+        end_time = time.time()
+        elapsed_time = end_time - start_time
 
-    # Let the server initialize W&B inside build_strategy/server code
+        # 4. Log final metrics and clean up
+        # This assumes the wandb run is still active from the strategy initialization
+        if wandb.run:
+            wandb.log({"true_runtime_seconds": elapsed_time})
+            wandb.finish() # End the current W&B run before starting the next
+            
+        print(f"✅ Finished experiment: {run_name}")
+        print(f"⏱️ Total Simulation Time: {elapsed_time:.2f} seconds")
 
-    start_time = time.time()
+        # Optional: add a delay between runs to prevent rate-limiting or other issues
+        print("🕒 Waiting 10 seconds before next run...\n")
+        time.sleep(10)
 
-    start_simulation(
-        client_fn=client_fn_wrapper,
-        num_clients=run_config["num_partitions"],
-        config=ServerConfig(num_rounds=run_config["num_rounds"]),
-        strategy=strategy,
-    )
+    print("🎉 All experiments completed.")
 
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-
-    # Log runtime to existing W&B run (assumes wandb.init() was done in server)
-    wandb.log({"true_runtime_seconds": elapsed_time})
-    print(f"⏱️ Total Simulation Time for {FLWR_RUN}: {elapsed_time:.2f} seconds")
-
-    # Optional: add delay between runs
-    print("🕒 Waiting 30 seconds before next run...\n")
-    time.sleep(30)
-
-print("✅ All experiments completed.")
+if __name__ == "__main__":
+    main()

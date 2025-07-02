@@ -130,36 +130,116 @@ class TrimmedMean(FedAvg):
 
         return ndarrays_to_parameters(aggregated_ndarrays), {}
 
-# ... (CoordinateWiseMedian and build_strategy are correct and remain the same) ...
-class CoordinateWiseMedian(FedAvg):
+class Bulyan(FedAvg):
     """
-    An implementation of the Coordinate-wise Median robust aggregation rule.
-    For each parameter in the model, it calculates the median value across
-    all client updates.
+    An implementation of the Bulyan robust aggregation rule.
+    Bulyan combines Krum and TrimmedMean in a two-phase approach:
+    1. Phase 1 (Krum): Select the most trustworthy gradients
+    2. Phase 2 (TrimmedMean): Apply coordinate-wise trimmed mean to selected gradients
     """
+    def __init__(self, num_malicious_clients: int, selection_size: int, trimmed_mean_beta: int, **kwargs):
+        super().__init__(**kwargs)
+        self.num_malicious_clients = num_malicious_clients
+        self.selection_size = selection_size  # Number of gradients selected by Krum phase
+        self.trimmed_mean_beta = trimmed_mean_beta  # Number to trim from each end in TrimmedMean phase
+
+    def _krum_selection(self, results: List[Tuple[ClientProxy, FitRes]]) -> List[Tuple[ClientProxy, FitRes]]:
+        """Phase 1: Use Krum to select the most trustworthy gradients"""
+        num_clients = len(results)
+        
+        weights = [parameters_to_ndarrays(res.parameters) for _, res in results]
+        flat_weights = [flatten_weights(w) for w in weights]
+        
+        # Calculate pairwise distances (same as MultiKrum)
+        distances = []
+        for i in range(num_clients):
+            dists_i = []
+            for j in range(num_clients):
+                if i == j:
+                    dists_i.append(float('inf'))
+                else:
+                    dist = np.linalg.norm(flat_weights[i] - flat_weights[j]) ** 2
+                    dists_i.append(dist)
+            distances.append(dists_i)
+
+        # Calculate Krum scores
+        m = num_clients - self.num_malicious_clients - 2
+        scores = []
+        for i in range(num_clients):
+            sorted_dists = sorted(distances[i])
+            if len(sorted_dists) > m:
+                scores.append(sum(sorted_dists[:m]))
+            else:
+                scores.append(sum(sorted_dists))
+
+        # Select top selection_size clients with lowest scores
+        indexed_scores = list(zip(results, scores))
+        sorted_clients = sorted(indexed_scores, key=lambda x: x[1])
+        selected_clients = sorted_clients[:self.selection_size]
+        
+        print(f"Bulyan Phase 1 (Krum): Selected {len(selected_clients)} clients out of {num_clients}")
+        
+        return [client_res for (client_res, score) in selected_clients]
+
+    def _trimmed_mean_aggregation(self, selected_results: List[Tuple[ClientProxy, FitRes]]) -> List[np.ndarray]:
+        """Phase 2: Apply coordinate-wise trimmed mean to selected gradients"""
+        if not selected_results:
+            return []
+            
+        # Get all selected client weight updates
+        client_updates = [parameters_to_ndarrays(res.parameters) for _, res in selected_results]
+        
+        num_layers = len(client_updates[0])
+        aggregated_weights = []
+        
+        for layer_idx in range(num_layers):
+            # Stack the weights of the layer_idx-th layer from all selected clients
+            layer_updates = np.stack([client[layer_idx] for client in client_updates])
+            
+            # Apply trimmed mean: sort along client axis and trim beta from each end
+            num_clients = layer_updates.shape[0]
+            if num_clients <= 2 * self.trimmed_mean_beta:
+                print(f"Bulyan Phase 2: Not enough clients for trimming layer {layer_idx}, using regular mean")
+                trimmed_mean_layer = np.mean(layer_updates, axis=0)
+            else:
+                # Sort along the client axis (axis=0) and trim
+                sorted_updates = np.sort(layer_updates, axis=0)
+                trimmed_updates = sorted_updates[self.trimmed_mean_beta : -self.trimmed_mean_beta]
+                trimmed_mean_layer = np.mean(trimmed_updates, axis=0)
+            
+            aggregated_weights.append(trimmed_mean_layer)
+        
+        print(f"Bulyan Phase 2 (TrimmedMean): Aggregated {len(selected_results)} selected clients with beta={self.trimmed_mean_beta}")
+        
+        return aggregated_weights
+
     def aggregate_fit(
         self,
         server_round: int,
         results: List[Tuple[ClientProxy, FitRes]],
         failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
-        if not results: return None, {}
-            
-        # Get all client weight updates
-        client_updates = [parameters_to_ndarrays(res.parameters) for _, res in results]
+        if not results: 
+            return None, {}
         
-        num_layers = len(client_updates[0])
-        aggregated_weights = []
+        print(f"Bulyan aggregating {len(results)} client results")
         
-        for i in range(num_layers):
-            # Stack the weights of the i-th layer from all clients
-            layer_updates = np.stack([client[i] for client in client_updates])
-            
-            # Compute the median along the client axis (axis=0)
-            median_layer = np.median(layer_updates, axis=0)
-            aggregated_weights.append(median_layer)
-
-        # The return type for aggregate_fit is (Parameters, Dict), so return an empty dict
+        # Phase 1: Krum selection
+        selected_results = self._krum_selection(results)
+        
+        if not selected_results:
+            print("Bulyan: No clients selected in Phase 1")
+            return None, {}
+        
+        # Phase 2: Trimmed mean aggregation
+        aggregated_weights = self._trimmed_mean_aggregation(selected_results)
+        
+        if not aggregated_weights:
+            print("Bulyan: Failed to aggregate in Phase 2")
+            return None, {}
+        
+        print(f"Bulyan: Successfully aggregated {len(results)} -> {len(selected_results)} -> final weights")
+        
         return ndarrays_to_parameters(aggregated_weights), {}
 
 
@@ -222,8 +302,15 @@ def build_strategy(run_config: dict) -> Strategy:
         )
     elif strategy_name == "TrimmedMean":
         base_strategy = TrimmedMean(num_malicious_clients=num_malicious, **common_args)
-    elif strategy_name == "CoordMedian":
-        base_strategy = CoordinateWiseMedian(**common_args)
+    elif strategy_name == "Bulyan":
+        selection_size = run_config.get("bulyan_selection_size", run_config["num_partitions"] - num_malicious)
+        trimmed_mean_beta = run_config.get("trimmed_mean_beta", 1)
+        base_strategy = Bulyan(
+            num_malicious_clients=num_malicious,
+            selection_size=selection_size,
+            trimmed_mean_beta=trimmed_mean_beta,
+            **common_args
+        )
     else:
         raise ValueError(f"Unknown strategy: {strategy_name}")
         

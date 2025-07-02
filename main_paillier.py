@@ -8,21 +8,21 @@ import time
 import wandb
 
 base_config = {
-    "num_rounds": 2,
+    "num_rounds": 10,
     "local_epochs": 1,
     "alpha": 0.5,
-    "num_partitions": 5, # Starting with 5 to keep it fast
+    "num_partitions":10, # Starting with 5 to keep it fast
 }
 
 # --- Define Paillier experiment configs ---
 paillier_experiment_configs = {
-    # "paillier_fedavg_benign": {**base_config, "run_name": "paillier_fedavg_benign", "strategy": "PaillierFedAvg", "num_malicious": 0},
-    # "paillier_fedavg_attack": {**base_config, "run_name": "paillier_fedavg_attack", "strategy": "PaillierFedAvg", "num_malicious": 1},
+    "paillier_fedavg_benign": {**base_config, "run_name": "paillier_fedavg_benign", "strategy": "PaillierFedAvg", "num_malicious": 0},
+    # "paillier_fedavg_attack": {**base_config, "run_name": "paillier_fedavg_attack", "strategy": "PaillierFedAvg", "num_malicious": 3},
 
     # "paillier_trimmedmean_benign": {**base_config, "run_name": "paillier_trimmedmean_benign", "strategy": "PaillierTrimmedMean", "num_malicious": 0},
-    # "paillier_trimmedmean_attack": {**base_config, "run_name": "paillier_trimmedmean_attack", "strategy": "PaillierTrimmedMean", "num_malicious": 1},
-    "paillier_krum_benign": {**base_config, "run_name": "paillier_krum_benign", "strategy": "PaillierKrum", "num_malicious": 0},
-    "paillier_krum_attack": {**base_config, "run_name": "paillier_krum_attack", "strategy": "PaillierKrum", "num_malicious": 1},
+    # "paillier_trimmedmean_attack": {**base_config, "run_name": "paillier_trimmedmean_attack", "strategy": "PaillierTrimmedMean", "num_malicious": 3},
+    # "paillier_krum_benign": {**base_config, "run_name": "paillier_krum_benign", "strategy": "PaillierKrum", "num_malicious": 0},
+    # "paillier_krum_attack": {**base_config, "run_name": "paillier_krum_attack", "strategy": "PaillierKrum", "num_malicious": 3},
 }
 
 # --- Runner script ---

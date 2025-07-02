@@ -21,9 +21,14 @@ class BFVFlowerClient(NumPyClient):
         
         trained_weights = train(self.net, self.trainloader, epochs=config["local_epochs"], device=DEVICE)
         
-        # Apply attack if malicious
-        if self.run_config.get("partition_id", -1) < self.run_config.get("num_malicious", 0):
-            trained_weights = [-w for w in trained_weights]
+        partition_id = self.run_config.get("partition_id", -1)
+        is_byzantine = partition_id < self.run_config.get("num_malicious", 0)
+
+        if is_byzantine:
+            attack_type = self.run_config.get("attack_type", "gaussian_noise")
+            sigma = self.run_config.get("attack_sigma", 0.5)
+            print(f"[Client {partition_id}] Byzantine client applying '{attack_type}' attack with sigma={sigma}")
+            trained_weights = [w + np.random.normal(0, sigma, w.shape).astype(np.float32) for w in trained_weights]
 
         flat_weights = flatten_weights(trained_weights)
         

@@ -9,7 +9,7 @@ import wandb
 
 # Define a base configuration for reuse
 base_config = {
-    "num_rounds": 2,
+    "num_rounds": 10,
     "local_epochs": 1,
     "alpha": 0.5,
     "num_partitions": 10,
@@ -18,17 +18,19 @@ base_config = {
 
 # --- Define all CKKS FHE experiment configs ---
 ckks_experiment_configs = {
-    # "ckks_fedavg_benign": {**base_config, "run_name": "ckks_fedavg_benign", "strategy": "CKKSFedAvg", "num_malicious": 0},
-    # "ckks_fedavg_attack": {**base_config, "run_name": "ckks_fedavg_attack", "strategy": "CKKSFedAvg", "num_malicious": 3},
+    #"ckks_fedavg_benign": {**base_config, "run_name": "ckks_fedavg_benign", "strategy": "CKKSFedAvg", "num_malicious": 0},
+    #"ckks_fedavg_attack": {**base_config, "run_name": "ckks_fedavg_attack", "strategy": "CKKSFedAvg", "num_malicious": 3},
 
-    "ckks_krum_benign": {**base_config, "run_name": "ckks_krum_benign", "strategy": "CKKSKrum", "num_malicious": 0},
-    "ckks_krum_attack": {**base_config, "run_name": "ckks_krum_attack", "strategy": "CKKSKrum", "num_malicious": 3},
+    # "ckks_krum_benign": {**base_config, "run_name": "ckks_krum_benign", "strategy": "CKKSKrum", "num_malicious": 0},
+    # "ckks_krum_attack": {**base_config, "run_name": "ckks_krum_attack", "strategy": "CKKSKrum", "num_malicious": 3},
 
-    # "ckks_multikrum_benign": {**base_config, "run_name": "ckks_multikrum_benign", "strategy": "CKKSMultiKrum", "num_malicious": 0},
-    # "ckks_multikrum_attack": {**base_config, "run_name": "ckks_multikrum_attack", "strategy": "CKKSMultiKrum", "num_malicious": 3},
+    #"ckks_multikrum_benign": {**base_config, "run_name": "ckks_multikrum_benign", "strategy": "CKKSMultiKrum", "num_malicious": 0},
+    #"ckks_multikrum_attack": {**base_config, "run_name": "ckks_multikrum_attack", "strategy": "CKKSMultiKrum", "num_malicious": 3},
 
-    # "ckks_trimmedmean_benign": {**base_config, "run_name": "ckks_trimmedmean_benign", "strategy": "CKKSTrimmedMean", "num_malicious": 0},
-    # "ckks_trimmedmean_attack": {**base_config, "run_name": "ckks_trimmedmean_attack", "strategy": "CKKSTrimmedMean", "num_malicious": 3},
+    #"ckks_trimmedmean_benign": {**base_config, "run_name": "ckks_trimmedmean_benign", "strategy": "CKKSTrimmedMean", "num_malicious": 0},
+    #"ckks_trimmedmean_attack": {**base_config, "run_name": "ckks_trimmedmean_attack", "strategy": "CKKSTrimmedMean", "num_malicious": 3},
+    "ckks_bulyan_benign": {**base_config, "run_name": "ckks_bulyan_benign", "strategy": "CKKSBulyan", "num_malicious": 0, "bulyan_selection_size": 8, "trimmed_mean_beta": 2},
+    "ckks_bulyan_attack": {**base_config, "run_name": "ckks_bulyan_attack", "strategy": "CKKSBulyan", "num_malicious": 3, "bulyan_selection_size": 8, "trimmed_mean_beta": 2},
 }
 
 # --- Runner script ---
