@@ -1,5 +1,7 @@
+# --- START OF FILE task.py ---
+
 from collections import OrderedDict
-from typing import Tuple
+from typing import Tuple, List
 from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Normalize, ToTensor
@@ -17,6 +19,7 @@ TRANSFORMS = Compose([
 ])
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+# ... (Net and SmallNet class definitions remain unchanged) ...
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
@@ -35,19 +38,14 @@ class Net(nn.Module):
         x = F.relu(self.fc2(x))
         return self.fc3(x)
     
-# Let's try smallModel for Krum.
-
 class SmallNet(nn.Module):
-    """A smaller CNN with fewer than 8192 parameters."""
     def __init__(self):
         super(SmallNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5) # 3*6*5*5 + 6 = 456
+        self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 10, 5) # 6*10*5*5 + 10 = 1510
-        # After two pools, image is 5x5
-        self.fc1 = nn.Linear(10 * 5 * 5, 20) # 250*20 + 20 = 5020
-        self.fc2 = nn.Linear(20, 10) # 20*10 + 10 = 210
-        # Total params: 456 + 1510 + 5020 + 210 = 7196 < 8192
+        self.conv2 = nn.Conv2d(6, 10, 5)
+        self.fc1 = nn.Linear(10 * 5 * 5, 20)
+        self.fc2 = nn.Linear(20, 10)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
@@ -56,13 +54,13 @@ class SmallNet(nn.Module):
         x = F.relu(self.fc1(x))
         return self.fc2(x)
 
+# ... (load_data, train, test, get_weights, set_weights, etc. remain unchanged) ...
+
 def get_central_testloader() -> DataLoader:
     testset = CIFAR10(root="./data", train=False, download=True, transform=TRANSFORMS)
     return DataLoader(testset, batch_size=64, shuffle=False)
 
 def load_data(partition_id: int, num_partitions: int, alpha: float, batch_size: int = 32) -> Tuple[DataLoader, None]:
-    # Disable caching for flwr-datasets before loading data
-    # 
     partitioner = DirichletPartitioner(num_partitions=num_partitions, alpha=alpha, min_partition_size=100, seed=42, partition_by="label")
     fds = FederatedDataset(dataset="cifar10", partitioners={"train": partitioner})
     partition = fds.load_partition(partition_id, "train")
@@ -77,7 +75,7 @@ def load_data(partition_id: int, num_partitions: int, alpha: float, batch_size: 
 def train(net: nn.Module, trainloader: DataLoader, epochs: int, device) -> list:
     net.to(device)
     criterion = nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.Adam(net.parameters())
+    optimizer = torch.optim.Adam(net.parameters(), lr = 0.001)
     net.train()
 
     for epoch in range(epochs):
@@ -89,9 +87,6 @@ def train(net: nn.Module, trainloader: DataLoader, epochs: int, device) -> list:
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-
-        print(f"[Epoch {epoch}] Last Batch Loss: {loss.item():.4f}")
-
     return get_weights(net)
 
 def test(net: nn.Module, testloader: DataLoader, device) -> Tuple[float, float]:
@@ -112,21 +107,23 @@ def test(net: nn.Module, testloader: DataLoader, device) -> Tuple[float, float]:
     accuracy = correct / total
     return loss / len(testloader), accuracy
 
-def get_weights(net: nn.Module) -> list:
+def get_weights(net: nn.Module) -> List[np.ndarray]:
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
-def set_weights(net: nn.Module, parameters: list) -> None:
+def set_weights(net: nn.Module, parameters: List[np.ndarray]) -> None:
     params_dict = zip(net.state_dict().keys(), parameters)
     state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
     net.load_state_dict(state_dict, strict=True)
 
-# sec_agg/task.py (add this to the end of your existing file)
-
-
+# [NEW] Helper function to calculate the size of model weights in bytes
+def get_weights_size_bytes(weights: List[np.ndarray]) -> int:
+    """Calculates the total size of a list of NumPy arrays in bytes."""
+    return sum(w.nbytes for w in weights)
 
 def flatten_weights(weights: list) -> np.ndarray:
-    """Flattens a list of NumPy arrays (model weights) into a single 1D array."""
     return np.concatenate([w.flatten() for w in weights])
+
+# ... (unflatten_weights, get_trainloader remain unchanged) ...
 
 def unflatten_weights(flat_weights: np.ndarray, model: nn.Module) -> list:
     """Reconstructs model weights from a flat array using the model’s state_dict."""
