@@ -20,8 +20,8 @@ from flwr.common import (
     parameters_to_ndarrays,
 )
 # [MODIFIED] Import the new size calculation helper
-from .task import SmallNet, get_weights, get_central_testloader, set_weights, test, flatten_weights, get_weights_size_bytes
-
+from .task import Net, SmallNet, get_weights, get_central_testloader, set_weights, test, flatten_weights, get_weights_size_bytes
+#wandb.login(key="014b4599a29e77c5871e90d34d10d054e463cf50")
 # ... (MultiKrum, TrimmedMean, Bulyan class implementations remain unchanged) ...
 # In sec_agg/server_app.py
 
@@ -294,10 +294,10 @@ def build_strategy(run_config: dict) -> Strategy:
     num_malicious = run_config.get("num_malicious", 0)
     local_epochs = run_config.get("local_epochs", 1)
 
-    wandb.init(project="fl-robustness-evaluation", name=run_name, reinit=True,
+    wandb.init(project="fl-robustness-evaluation", name=run_name, resume="allow",
                settings=wandb.Settings(start_method="thread"), config=run_config)
 
-    net = SmallNet()
+    net = Net()
     initial_parameters = ndarrays_to_parameters(get_weights(net))
     
     testloader = get_central_testloader()
@@ -312,11 +312,13 @@ def build_strategy(run_config: dict) -> Strategy:
         
         loss, acc = test(net, testloader, device)
         return loss, {"accuracy": acc}
+	
+    def fit_config(server_round: int):
+        # Add the current round to the config and return the whole dictionary
+        config_to_send = run_config.copy()
+        config_to_send["round"] = server_round
+        return config_to_send
 
-    def fit_config(server_round):
-        return {"local_epochs": local_epochs, "round": server_round}
-    
-    # --- Instantiate the base strategy ---
     base_strategy: Strategy
     common_args = {
         "fraction_fit": 1.0,

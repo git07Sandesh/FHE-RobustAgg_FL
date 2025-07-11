@@ -31,6 +31,9 @@ class BFVFlowerClient(NumPyClient):
             trained_weights = [w + np.random.normal(0, sigma, w.shape).astype(np.float32) for w in trained_weights]
 
         flat_weights = flatten_weights(trained_weights)
+
+        l2_norm = np.linalg.norm(flat_weights)
+        metrics = {"l2_norm": float(l2_norm)}
         
         # 1. Encode floats to integers using fixed-point representation
         encoded_vector = encode(flat_weights)
@@ -42,7 +45,7 @@ class BFVFlowerClient(NumPyClient):
         serialized_vector = encrypted_vector.serialize()
         payload = np.frombuffer(serialized_vector, dtype=np.uint8)
         
-        return [payload], len(self.trainloader.dataset), {}
+        return [payload], len(self.trainloader.dataset), metrics
 
 def client_fn_bfv(partition_id: int, run_config: dict, context_bytes: bytes):
     strategy = run_config.get("strategy")

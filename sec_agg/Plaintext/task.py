@@ -2,17 +2,19 @@
 
 from collections import OrderedDict
 from typing import Tuple, List
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Normalize, ToTensor
 import numpy as np
+
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import DirichletPartitioner
 from datasets import disable_caching
-
+DATA_ROOT = os.environ.get("FL_DATA_ROOT", "./data")
 TRANSFORMS = Compose([
     ToTensor(),
     Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
@@ -55,27 +57,60 @@ class SmallNet(nn.Module):
         return self.fc2(x)
 
 # ... (load_data, train, test, get_weights, set_weights, etc. remain unchanged) ...
-
 def get_central_testloader() -> DataLoader:
-    testset = CIFAR10(root="./data", train=False, download=True, transform=TRANSFORMS)
+    """Loads the central test set."""
+    # [MODIFIED] Use the DATA_ROOT variable and set download=False.
+    # The data must be pre-downloaded to this location.
+    print(f"Loading central test set from: {DATA_ROOT}")
+    testset = CIFAR10(root=DATA_ROOT, train=False, download=False, transform=TRANSFORMS)
     return DataLoader(testset, batch_size=64, shuffle=False)
 
+
+# In sec_agg/Plaintext/task.py
+
 def load_data(partition_id: int, num_partitions: int, alpha: float, batch_size: int = 32) -> Tuple[DataLoader, None]:
-    partitioner = DirichletPartitioner(num_partitions=num_partitions, alpha=alpha, min_partition_size=100, seed=42, partition_by="label")
-    fds = FederatedDataset(dataset="cifar10", partitioners={"train": partitioner})
-    partition = fds.load_partition(partition_id, "train")
+    """Loads a partition of the dataset for a single client using a robust manual method."""
+    
+    print(f"Client {partition_id}: Loading data partition manually from {DATA_ROOT}...")
+    
+    # Load the full CIFAR10 train set from the specified DATA_ROOT.
+    # download=False is critical.
+    try:
+        dataset = CIFAR10(root=DATA_ROOT, train=True, download=False, transform=TRANSFORMS)
+    except Exception as e:
+        print(f"FATAL: Client {partition_id}: Failed to load CIFAR10 dataset from {DATA_ROOT}. Make sure it is pre-downloaded. Error: {e}")
+        # Exit with an error code if data isn't found, so the job fails clearly.
+        sys.exit(1)
 
-    def apply_transforms(batch):
-        batch["img"] = [TRANSFORMS(img) for img in batch["img"]]
-        return batch
+    # The rest of your manual partitioning logic is great and remains unchanged.
+    labels = np.array(dataset.targets)
+    idx_by_class = [np.where(labels == i)[0] for i in range(len(dataset.classes))]
 
-    partition = partition.with_transform(apply_transforms)
-    return DataLoader(partition, batch_size=batch_size, shuffle=True, drop_last=True), None
+    # We use a fixed seed to ensure partitions are the same on every run
+    rng = np.random.default_rng(12345)
+    proportions = rng.dirichlet([alpha] * num_partitions, len(dataset.classes))
+
+    partitions = [[] for _ in range(num_partitions)]
+    for cls_idx, cls_prop in zip(idx_by_class, proportions):
+        # Permute the indices for this class
+        permuted_indices = rng.permutation(cls_idx)
+        # Calculate the split points
+        split_points = np.cumsum(cls_prop)[:-1] * len(cls_idx)
+        # Split the permuted indices
+        cls_splits = np.split(permuted_indices, split_points.astype(int))
+        for pid, split in enumerate(cls_splits):
+            partitions[pid].extend(split.tolist())
+
+    indices = partitions[partition_id]
+    subset = Subset(dataset, indices)
+    
+    print(f"Client {partition_id}: Successfully created manual partition with {len(indices)} samples.")
+    return DataLoader(subset, batch_size=batch_size, shuffle=True, drop_last=True), None
 
 def train(net: nn.Module, trainloader: DataLoader, epochs: int, device) -> list:
     net.to(device)
     criterion = nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.Adam(net.parameters(), lr = 0.001)
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9, weight_decay=0.0001)
     net.train()
 
     for epoch in range(epochs):
@@ -86,9 +121,12 @@ def train(net: nn.Module, trainloader: DataLoader, epochs: int, device) -> list:
             outputs = net(images)
             loss = criterion(outputs, labels)
             loss.backward()
+
+            # Add gradient clipping
+            torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=1.0)
+            
             optimizer.step()
     return get_weights(net)
-
 def test(net: nn.Module, testloader: DataLoader, device) -> Tuple[float, float]:
     net.to(device)
     criterion = nn.CrossEntropyLoss()

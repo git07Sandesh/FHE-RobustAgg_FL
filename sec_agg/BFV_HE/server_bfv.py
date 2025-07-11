@@ -128,49 +128,35 @@ class BFVTrimmedMean(FedAvg):
         self.fhe_context = fhe_context
         self.sample_model = sample_model
         self.precision_bits = precision_bits
-
-    def aggregate_fit(
-        self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[any]
-    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+    def aggregate_fit(self, server_round, results, failures):
         if not results: return None, {}
 
-        print("BFVTrimmedMean: Using leaky protocol (decrypt-all-to-compute-norms)")
-
-        client_updates_encoded = [np.array(ts.bfv_vector_from(self.fhe_context, parameters_to_ndarrays(res.parameters)[0].tobytes()).decrypt()) for _, res in results]
-        
-        norms = [np.linalg.norm(update) for update in client_updates_encoded]
-        
+        # Use client-reported norms
+        norms = [res.metrics.get("l2_norm", 0.0) for _, res in results]
         indexed_norms = sorted(enumerate(norms), key=lambda x: x[1])
-        
-        # --- FIXED: Simplified and Corrected Trimming Logic ---
-        
+
         num_to_trim = self.b
         num_results = len(results)
-
-        # Only trim if we have enough clients AND we are in an attack scenario
         if num_results > 2 * num_to_trim and num_to_trim > 0:
             untrimmed_indices = [i for i, _ in indexed_norms]
             indices_to_keep = untrimmed_indices[num_to_trim : -num_to_trim]
-            print(f"BFVTrimmedMean trimmed {2 * num_to_trim} clients, keeping {len(indices_to_keep)}.")
         else:
-            # In all other cases (benign run, or not enough clients), keep everyone
             indices_to_keep = list(range(num_results))
-            print(f"BFVTrimmedMean: Not enough clients to trim, or benign run. Keeping all {len(indices_to_keep)} clients.")
-        
-        # --- End of fixed logic ---
 
         if not indices_to_keep:
             print("WARNING: BFVTrimmedMean ended up with no clients to keep. This should not happen.")
             return None, {}
 
-        selected_updates_encoded = [client_updates_encoded[i] for i in indices_to_keep]
+        # Only decrypt the selected updates
+        selected_updates_encoded = [
+            np.array(ts.bfv_vector_from(self.fhe_context, parameters_to_ndarrays(results[i][1].parameters)[0].tobytes()).decrypt())
+            for i in indices_to_keep
+        ]
         averaged_encoded_vector = np.mean(np.array(selected_updates_encoded), axis=0).astype(np.int64)
-        
         decoded_flat_weights = decode(averaged_encoded_vector.tolist(), self.precision_bits)
-        
         new_global_weights = unflatten_weights(decoded_flat_weights, self.sample_model)
         return ndarrays_to_parameters(new_global_weights), {}
-    
+
 class BFVBulyan(FedAvg):
     # This __init__ was already correct from the last step
     def __init__(self, num_malicious_clients: int, fhe_context: ts.Context, sample_model: torch.nn.Module, precision_bits: int,
