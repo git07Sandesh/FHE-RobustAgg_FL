@@ -61,21 +61,54 @@ def get_central_testloader() -> DataLoader:
     return DataLoader(testset, batch_size=64, shuffle=False)
 
 def load_data(partition_id: int, num_partitions: int, alpha: float, batch_size: int = 32) -> Tuple[DataLoader, None]:
-    partitioner = DirichletPartitioner(num_partitions=num_partitions, alpha=alpha, min_partition_size=100, seed=42, partition_by="label")
-    fds = FederatedDataset(dataset="cifar10", partitioners={"train": partitioner})
-    partition = fds.load_partition(partition_id, "train")
+    try:
+        # Try to use flwr_datasets (assumes internet access)
+        partitioner = DirichletPartitioner(
+            num_partitions=num_partitions, partition_by="label", alpha=alpha,
+            min_partition_size=100, seed=42,
+        )
+        fds = FederatedDataset(dataset="cifar10", partitioners={"train": partitioner})
+        partition = fds.load_partition(partition_id, "train")
 
-    def apply_transforms(batch):
-        batch["img"] = [TRANSFORMS(img) for img in batch["img"]]
-        return batch
+        def apply_transforms(batch):
+            batch["img"] = [TRANSFORMS(img) for img in batch["img"]]
+            return batch
 
-    partition = partition.with_transform(apply_transforms)
-    return DataLoader(partition, batch_size=batch_size, shuffle=True, drop_last=True), None
+        partition = partition.with_transform(apply_transforms)
+        return DataLoader(partition, batch_size=batch_size, shuffle=True, drop_last=True), None
 
+    except Exception as e:
+        print("[WARNING] FederatedDataset failed, falling back to local CIFAR-10")
+        from torchvision.datasets import CIFAR10
+        from torch.utils.data import Subset
+
+        # Load the full CIFAR10 train set locally
+        dataset = CIFAR10(root="./data", train=True, download=False, transform=TRANSFORMS)
+
+        # Create Dirichlet partitions manually (once only)
+        labels = np.array(dataset.targets)
+        num_classes = 10
+        idx_by_class = [np.where(labels == i)[0] for i in range(num_classes)]
+
+        # Sample proportions for each class
+        class_counts = [len(idx) for idx in idx_by_class]
+        proportions = np.random.dirichlet([alpha] * num_partitions, num_classes)
+
+        # Build partition index list
+        partitions = [[] for _ in range(num_partitions)]
+        for cls_idx, cls_prop in zip(idx_by_class, proportions):
+            cls_splits = np.split(np.random.permutation(cls_idx), 
+                                  (np.cumsum(cls_prop)[:-1] * len(cls_idx)).astype(int))
+            for pid, split in enumerate(cls_splits):
+                partitions[pid].extend(split.tolist())
+
+        indices = partitions[partition_id]
+        subset = Subset(dataset, indices)
+        return DataLoader(subset, batch_size=batch_size, shuffle=True, drop_last=True), None
 def train(net: nn.Module, trainloader: DataLoader, epochs: int, device) -> list:
     net.to(device)
     criterion = nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.Adam(net.parameters(), lr = 0.001)
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9, weight_decay=0.0001)
     net.train()
 
     for epoch in range(epochs):
@@ -86,6 +119,10 @@ def train(net: nn.Module, trainloader: DataLoader, epochs: int, device) -> list:
             outputs = net(images)
             loss = criterion(outputs, labels)
             loss.backward()
+
+            # Add gradient clipping
+            torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=1.0)
+            
             optimizer.step()
     return get_weights(net)
 
