@@ -1,5 +1,3 @@
-# --- START OF FILE main.py ---
-
 import time
 import wandb
 from flwr.simulation import start_simulation
@@ -15,10 +13,10 @@ import torch
 # ----------------- Base Configuration -----------------
 # Define all common parameters here.
 BASE_CONFIG = {
-    "num_rounds": 30, # [MODIFIED] Increased for more meaningful convergence
-    "local_epochs": 3,
+    "num_rounds": 20, # [MODIFIED] Increased for more meaningful convergence
+    "local_epochs": 5,
     "alpha": 0.5,
-    "num_partitions": 10,
+    "num_partitions": 100,
     "num_malicious": 3,
     "attack_type": "gaussian_noise",
     "attack_sigma": 0.5,

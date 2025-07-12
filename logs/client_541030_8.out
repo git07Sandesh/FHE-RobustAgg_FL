@@ -1,8 +1,0 @@
---- Client Job is running! ---
-Host: gpu002.cluster
-Client ID: 8
---- Setting Environment Variables ---
---- Directly executing Python from absolute path ---
-Client 8: Loading data partition manually from /homes/01/sxbhattarai/sec-agg/data...
-Client 8: Successfully created manual partition with 3527 samples.
-Client 8 connecting to server at gpu002.cluster:8080

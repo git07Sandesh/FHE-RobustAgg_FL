@@ -1,0 +1,28 @@
+#!/bin/bash
+#SBATCH --job-name=fl_experiment
+#SBATCH --output=/homes/01/sxbhattarai/sec-agg/logs/fl_job_%j.out
+#SBATCH --error=/homes/01/sxbhattarai/sec-agg/logs/fl_job_%j.err
+#SBATCH --time=00:30:00
+#SBATCH --partition=gpu
+# [THE FIX] Request a SINGLE node with all the GPUs on it
+#SBATCH --nodes=1
+#SBATCH --ntasks=11       # Total number of processes we will launch (1 server + 10 clients)
+#SBATCH --gres=gpu:4      # Request all 4 GPUs on a node like gpu002
+
+# --- Start Clients in the Background ---
+# Use a loop to launch 10 client tasks
+for i in {0..9}
+do
+    echo "Starting client $i..."
+    # Use srun to launch each client. Slurm will place them on available resources.
+    # The '&' runs each one in the background.
+    srun --ntasks=1 --exclusive --nodes=1-1 --gpus-per-task=1 \
+        "$PYTHON_EXE" "$PROJECT_HOME/distributed_fl/start_client.py" "$i" &
+    # Add a small delay between client launches to be safe
+    sleep 1
+done
+
+# --- Wait for all background jobs to finish ---
+echo "All processes launched. Waiting for completion..."
+wait
+echo "--- FL Experiment Job Finished ---"

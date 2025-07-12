@@ -18,7 +18,7 @@ export PROJECT_HOME="/homes/01/sxbhattarai/sec-agg"
 export PYTHONPATH="$PROJECT_HOME"
 export FL_DATA_ROOT="$PROJECT_HOME/data"
 export WANDB_MODE=offline
-
+export CUDA_LAUNCH_BLOCKING=1
 echo "--- Directly executing Python from absolute path ---"
 /homes/01/sxbhattarai/miniconda3/envs/flwr_env_py311/bin/python "$PROJECT_HOME/distributed_fl/start_client.py" $SLURM_ARRAY_TASK_ID
 

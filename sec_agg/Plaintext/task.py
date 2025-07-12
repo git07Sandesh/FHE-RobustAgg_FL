@@ -115,7 +115,7 @@ def train(net: nn.Module, trainloader: DataLoader, epochs: int, device) -> list:
 
     for epoch in range(epochs):
         for batch in trainloader:
-            images, labels = batch["img"], batch["label"]
+            images, labels = batch
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = net(images)

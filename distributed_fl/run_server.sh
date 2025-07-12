@@ -20,8 +20,9 @@ export WANDB_MODE=offline
 # --- Hostname Setup ---
 SERVER_HOST_FILE="$PROJECT_HOME/server_host.txt"
 rm -f "$SERVER_HOST_FILE"
-echo "$(hostname):8080" > "$SERVER_HOST_FILE"
-
+NODE_IP=$(hostname -I | awk '{print $1}')
+echo "${NODE_IP}:8080" > "$SERVER_HOST_FILE"
+echo "Server IP address ${NODE_IP}:8080 written to $SERVER_HOST_FILE"
 echo "--- Directly executing Python from absolute path ---"
 # This bypasses any and all conda activation issues.
 /homes/01/sxbhattarai/miniconda3/envs/flwr_env_py311/bin/python "$PROJECT_HOME/distributed_fl/start_server.py"
