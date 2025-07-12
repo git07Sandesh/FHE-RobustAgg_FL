@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "/homes/01/sxbhattarai/sec-agg/main.py", line 14, in <module>
-    from flwr.client.client_app import client_fn_from_num_client_proxy
-ImportError: cannot import name 'client_fn_from_num_client_proxy' from 'flwr.client.client_app' (/homes/01/sxbhattarai/miniconda3/envs/flwr_env_py311/lib/python3.11/site-packages/flwr/client/client_app.py)
