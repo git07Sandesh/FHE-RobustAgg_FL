@@ -2,7 +2,7 @@
 #SBATCH --job-name=fl_simulation
 #SBATCH --output=/homes/01/sxbhattarai/sec-agg/logs/simulation_%j.out
 #SBATCH --error=/homes/01/sxbhattarai/sec-agg/logs/simulation_%j.err
-#SBATCH --time=01:00:00           # Adjust time as needed for your simulation
+#SBATCH --time=04:00:00           # Adjust time as needed for your simulation
 #SBATCH --partition=gpu
 #SBATCH --nodes=1                 # Request a single node
 #SBATCH --cpus-per-task=16        # Provide enough CPUs for Ray to manage clients (e.g., 2 CPUs * 10 clients = 20, but 16 is good start)

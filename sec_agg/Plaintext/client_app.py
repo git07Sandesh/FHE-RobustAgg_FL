@@ -3,12 +3,12 @@ import numpy as np
 import time
 from flwr.client import NumPyClient
 # [MODIFIED] Import the new helper function
-from .task import Net, load_data, get_weights, set_weights, train, get_weights_size_bytes
+from .task import Net, SmallNet, load_data, get_weights, set_weights, train, get_weights_size_bytes
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def client_fn(partition_id: int, run_config: dict):
-    net = Net().to(DEVICE)
+    net = SmallNet().to(DEVICE)
     alpha = run_config.get("alpha", 0.5)
     num_malicious = run_config.get("num_malicious", 0)
     is_byzantine = partition_id < num_malicious

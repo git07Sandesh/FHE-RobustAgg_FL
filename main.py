@@ -13,14 +13,13 @@ import torch
 # ----------------- Base Configuration -----------------
 # Define all common parameters here.
 BASE_CONFIG = {
-    "num_rounds": 20, # [MODIFIED] Increased for more meaningful convergence
-    "local_epochs": 5,
+    "num_rounds": 30, # [MODIFIED] Increased for more meaningful convergence
+    "local_epochs": 3,
     "alpha": 0.5,
-    "num_partitions": 100,
+    "num_partitions": 10,
     "num_malicious": 3,
     "attack_type": "gaussian_noise",
     "attack_sigma": 0.5,
-    # [NEW] Convergence threshold for the 'Convergence Rate' metric
     "convergence_threshold": 0.50,
 }
 
@@ -28,37 +27,25 @@ BASE_CONFIG = {
 # [MODIFIED] Renamed for clarity
 STANDARD_EXPERIMENTS = [
      {"run_name": "fedavg_benign_f0_n10", "strategy": "FedAvg", "num_malicious": 0},
-    # {"run_name": "fedavg_attack_f3_n10", "strategy": "FedAvg", "num_malicious": 3},
-    # {"run_name": "krum_benign_f0_n10", "strategy": "Krum", "num_malicious": 0},
-    # {"run_name": "krum_attack_f3_n10", "strategy": "Krum", "num_malicious": 3},
-    # {"run_name": "multikrum_benign_f0_n10", "strategy": "MultiKrum", "num_malicious": 0},
-    # {"run_name": "multikrum_attack_f3_n10", "strategy": "MultiKrum", "num_malicious": 3},
-    # {"run_name": "trimmedmean_benign_f0_n10", "strategy": "TrimmedMean", "num_malicious": 0},
-    # {"run_name": "trimmedmean_attack_f3_n10", "strategy": "TrimmedMean", "num_malicious": 3},
-    # {
-    #     "run_name": "bulyan_benign_f0_n10",
-    #     "strategy": "Bulyan",
-    #     "num_malicious": 0,
-    #     "bulyan_selection_size": 7, # 10 - 0 - 1 = 8
-    #     "trimmed_mean_beta": 1,     # (7 - 2*f - 1)/2 = (7 - 2*0 - 1)/2 = 2. Something is wrong here. n-f clients are passed. so (7-2*0-1)/2. So 3 clients will be selected. 
-    # },
-    # {
-    #     "run_name": "bulyan_attack_f3_n10",
-    #     "strategy": "Bulyan",
-    #     "num_malicious": 3,
-    #     "bulyan_selection_size": 7, # 10 - 3 = 7
-    #     "trimmed_mean_beta": 1,     # (7 - 2*f - 1)/2 = (7 - 2*1 - 1)/2 = 2. Something is wrong here. n-f clients are passed. so (7-2*0-1)/2. So 3 clients will be selected. 
-    # },
+     {"run_name": "fedavg_attack_f3_n10", "strategy": "FedAvg", "num_malicious": 3},
+     {"run_name": "krum_benign_f0_n10", "strategy": "Krum", "num_malicious": 0},
+     {"run_name": "krum_attack_f3_n10", "strategy": "Krum", "num_malicious": 3},
+     {"run_name": "multikrum_benign_f0_n10", "strategy": "MultiKrum", "num_malicious": 0},
+     {"run_name": "multikrum_attack_f3_n10", "strategy": "MultiKrum", "num_malicious": 3},
+     {"run_name": "trimmedmean_benign_f0_n10", "strategy": "TrimmedMean", "num_malicious": 0},
+     {"run_name": "trimmedmean_attack_f3_n10", "strategy": "TrimmedMean", "num_malicious": 3},
+     {"run_name": "bulyan_benign_f0_n10","strategy": "Bulyan", "num_malicious": 0,"bulyan_selection_size": 8, "trimmed_mean_beta": 1},
+     { "run_name": "bulyan_attack_f3_n10","strategy": "Bulyan", "num_malicious": 3, "bulyan_selection_size": 8, "trimmed_mean_beta": 1},
 ]
 
 # [NEW] Idea 3: Scalability Analysis
 # SCALABILITY_EXPERIMENTS = [
-#     # Bulyan (n=10, f=3) - Already in STANDARD_EXPERIMENTS
-#     # FedAvg (n=10, f=3) - Already in STANDARD_EXPERIMENTS
-#     # n=20, f=6 (~30%)
-#     # {"run_name": "fedavg_attack_f6_n20", "strategy": "FedAvg", "num_partitions": 20, "num_malicious": 6},
-#     # {"run_name": "bulyan_attack_f6_n20", "strategy": "Bulyan", "num_partitions": 20, "num_malicious": 6, "bulyan_selection_size": 14, "trimmed_mean_beta": 2},
-#     # # n=40, f=12 (~30%) - n=50 might be too slow for a quick test
+      # Bulyan (n=10, f=3) - Already in STANDARD_EXPERIMENTS
+      # FedAvg (n=10, f=3) - Already in STANDARD_EXPERIMENTS
+      # n=20, f=6 (~30%)
+#      {"run_name": "fedavg_attack_f6_n20", "strategy": "FedAvg", "num_partitions": 20, "num_malicious": 6},
+#      {"run_name": "bulyan_attack_f6_n20", "strategy": "Bulyan", "num_partitions": 20, "num_malicious": 6, "bulyan_selection_size": 16, "trimmed_mean_beta": 2},
+#      # n=40, f=12 (~30%) - n=50 might be too slow for a quick test
 #     # {"run_name": "fedavg_attack_f12_n40", "strategy": "FedAvg", "num_partitions": 40, "num_malicious": 12},
 #     # {"run_name": "bulyan_attack_f12_n40", "strategy": "Bulyan", "num_partitions": 40, "num_malicious": 12, "bulyan_selection_size": 28, "trimmed_mean_beta": 4},
 # ]
@@ -105,7 +92,7 @@ def main():
 
     # [NEW] Determine resources dynamically
     gpu_available = torch.cuda.is_available()
-    client_resources = {"num_cpus": 2, "num_gpus": 0.5 if gpu_available else 0.0}
+    client_resources = {"num_cpus": 2, "num_gpus": 0.4 if gpu_available else 0.0}
     print(f"🚀 Starting simulations with resources per client: {client_resources}")
 
 

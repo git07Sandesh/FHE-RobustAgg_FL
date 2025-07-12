@@ -19,12 +19,8 @@ from flwr.common import (
     ndarrays_to_parameters,
     parameters_to_ndarrays,
 )
-# [MODIFIED] Import the new size calculation helper
 from .task import Net, SmallNet, get_weights, get_central_testloader, set_weights, test, flatten_weights, get_weights_size_bytes
-#wandb.login(key="014b4599a29e77c5871e90d34d10d054e463cf50")
-# ... (MultiKrum, TrimmedMean, Bulyan class implementations remain unchanged) ...
 # In sec_agg/server_app.py
-
 class MultiKrum(Krum):
     def aggregate_fit(
         self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
@@ -54,9 +50,6 @@ class MultiKrum(Krum):
 
         return ndarrays_to_parameters(aggregate(best_results)), {}
 
-# In sec_agg/server_app.py
-
-# In sec_agg/server_app.py
 
 class TrimmedMean(FedAvg):
     """
@@ -266,6 +259,7 @@ class MetricsStrategyWrapper(Strategy):
     def log_final_metrics_and_artifact(self):
         """Called at the very end of a simulation to log summary metrics and artifacts."""
         print("Logging final metrics and artifacts...")
+
         summary_metrics = {
             "final_best_accuracy": self.best_accuracy,
             "convergence_round": self.convergence_round,
@@ -273,16 +267,17 @@ class MetricsStrategyWrapper(Strategy):
         }
         wandb.log(summary_metrics)
 
-        # Create and log an artifact with all the detailed round-by-round data
-        with tempfile.TemporaryDirectory() as tmpdir:
-            file_path = os.path.join(tmpdir, f"{self.run_name}_rundata.json")
-            with open(file_path, "w") as f:
-                json.dump(self.all_round_data, f, indent=2)
-            
-            artifact = wandb.Artifact(name=f"{self.run_name}_details", type="dataset")
-            artifact.add_file(file_path)
-            wandb.log_artifact(artifact)
-            print(f"✅ Artifact '{self.run_name}_details' logged.")
+        run_dir = wandb.run.dir
+        file_path = os.path.join(run_dir, f"{self.run_name}_rundata.json")
+
+        with open(file_path, "w") as f:
+            json.dump(self.all_round_data, f, indent=2)
+
+        artifact = wandb.Artifact(name=f"{self.run_name}_details", type="dataset")
+        artifact.add_file(file_path)
+        wandb.log_artifact(artifact)
+
+        print(f"✅ Artifact '{self.run_name}_details' logged in {run_dir}")
 
 
 # ==============================================================================
@@ -297,17 +292,14 @@ def build_strategy(run_config: dict) -> Strategy:
     wandb.init(project="fl-robustness-evaluation", name=run_name, resume="allow",
                settings=wandb.Settings(start_method="thread"), config=run_config)
 
-    net = Net()
+    net = SmallNet()
     initial_parameters = ndarrays_to_parameters(get_weights(net))
     
     testloader = get_central_testloader()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
-    # [MODIFIED] This is now a pure function, logging is handled by the wrapper.
+    # This is now a pure function, logging is handled by the wrapper.
     def evaluate_fn(_: int, parameters: List[np.ndarray], __) -> Optional[Tuple[float, Dict[str, Scalar]]]:
-        # ### THIS IS THE CRITICAL FIX ###
-        # The 'parameters' variable is ALREADY a list of numpy arrays here.
-        # We must not call parameters_to_ndarrays() on it again.
         set_weights(net, parameters) 
         
         loss, acc = test(net, testloader, device)

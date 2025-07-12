@@ -46,8 +46,8 @@ class SmallNet(nn.Module):
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 10, 5)
-        self.fc1 = nn.Linear(10 * 5 * 5, 20)
-        self.fc2 = nn.Linear(20, 10)
+        self.fc1 = nn.Linear(10 * 5 * 5, 40)
+        self.fc2 = nn.Linear(40, 10)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
@@ -68,7 +68,7 @@ def get_central_testloader() -> DataLoader:
 
 # In sec_agg/Plaintext/task.py
 
-def load_data(partition_id: int, num_partitions: int, alpha: float, batch_size: int = 32) -> Tuple[DataLoader, None]:
+def load_data(partition_id: int, num_partitions: int, alpha: float, batch_size: int = 64) -> Tuple[DataLoader, None]:
     """Loads a partition of the dataset for a single client using a robust manual method."""
     
     print(f"Client {partition_id}: Loading data partition manually from {DATA_ROOT}...")
@@ -174,6 +174,6 @@ def unflatten_weights(flat_weights: np.ndarray, model: nn.Module) -> list:
         new_weights.append(param_flat.reshape(shape))
         offset += size
     return new_weights
-def get_trainloader(partition_id: int, num_partitions: int = 5, alpha: float = 0.5, batch_size: int = 32):
+def get_trainloader(partition_id: int, num_partitions: int = 5, alpha: float = 0.5, batch_size: int = 64):
     trainloader, _ = load_data(partition_id, num_partitions, alpha, batch_size)
     return trainloader
