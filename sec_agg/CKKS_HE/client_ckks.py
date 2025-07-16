@@ -21,9 +21,10 @@ class CKKSFlowerClient(NumPyClient):
 
     def fit(self, parameters, config):
         set_weights(self.net, parameters)
-        
+        start_time = time.time()
         trained_weights = train(self.net, self.trainloader, epochs=config["local_epochs"], device=DEVICE)
-        
+        end_time = time.time()
+        training_time = end_time - start_time
         partition_id = self.run_config.get("partition_id", -1)
         is_byzantine = partition_id < self.run_config.get("num_malicious", 0)
 
@@ -35,27 +36,38 @@ class CKKSFlowerClient(NumPyClient):
 
         flat_weights = flatten_weights(trained_weights)
         
-        metrics = {}
+        metrics = {
+             "training_time": training_time,
+        }
         strategy_name = self.run_config.get("strategy")
         
         # For TrimmedMean, send the plaintext L2 norm
-        if strategy_name == "CKKSTrimmedMean":
+        if strategy_name == "CKKSTrimmedMean" or strategy_name == "CKKSBulyan":
             l2_norm = np.linalg.norm(flat_weights)
             metrics["l2_norm"] = float(l2_norm)
             
         # For all schemes, let's log payload sizes for comparison
-        plaintext_size = sys.getsizeof(pickle.dumps(trained_weights))
+        plaintext_payload = pickle.dumps(trained_weights)
+        plaintext_size = sys.getsizeof(plaintext_payload)
+        
         metrics["plaintext_size_bytes"] = plaintext_size
 
         # Encrypt and serialize
+        enc_start = time.perf_counter()
         encrypted_vector = ts.ckks_vector(self.fhe_context, flat_weights)
         serialized_vector = encrypted_vector.serialize()
-        
+        enc_end = time.perf_counter()
+
+        encryption_time = enc_end - enc_start
         encrypted_size = len(serialized_vector)
+
+        metrics["encryption_time"] = encryption_time
         metrics["encrypted_size_bytes"] = encrypted_size
-        metrics["expansion_factor"] = encrypted_size / plaintext_size
+        metrics["uplink_kb"] = encrypted_size / 1024
+        metrics["expansion_factor"] = encrypted_size / plaintext_size if plaintext_size > 0 else 0
 
         payload = np.frombuffer(serialized_vector, dtype=np.uint8)
+        print(f"[Client {partition_id}] Enc. Time: {encryption_time:.6f}s, Enc. Size: {encrypted_size} bytes, Plaintext Size: {plaintext_size} bytes, Expansion Factor: {metrics['expansion_factor']:.2f}, Uplink KB: {metrics['uplink_kb']:.2f}")
         
         return [payload], len(self.trainloader.dataset), metrics
 

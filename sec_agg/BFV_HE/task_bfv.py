@@ -1,5 +1,3 @@
-# sec_agg/task_bfv.py
-
 import tenseal as ts
 import numpy as np
 from typing import List
@@ -13,12 +11,10 @@ def get_bfv_context():
     """
     context = ts.context(
         ts.SCHEME_TYPE.BFV,
-       poly_modulus_degree=16384,  # <-- MATCH THIS with CKKS
-    # You MUST find a new plain_modulus that works with N=16384.
-    # It must be a prime `t` such that t ≡ 1 (mod 2*N).
-    # A common choice for N=16384 is a prime around 60 bits.
-    # TenSEAL provides a helper for this.
-        plain_modulus=ts.plain_modulus.BatchEncoder(poly_modulus_degree=16384)
+        poly_modulus_degree=16384,
+        # FIXED: Manually provide a suitable prime number for the plaintext modulus.
+        # This prime is chosen to be > 20 bits and compatible with batching for N=8192.
+        plain_modulus=786433
     )
     # Batching requires generating Galois keys.
     context.generate_galois_keys()

@@ -46,8 +46,8 @@ class SmallNet(nn.Module):
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 10, 5)
-        self.fc1 = nn.Linear(10 * 5 * 5, 40)
-        self.fc2 = nn.Linear(40, 10)
+        self.fc1 = nn.Linear(10 * 5 * 5, 64)
+        self.fc2 = nn.Linear(64, 10)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
@@ -110,7 +110,9 @@ def load_data(partition_id: int, num_partitions: int, alpha: float, batch_size: 
 def train(net: nn.Module, trainloader: DataLoader, epochs: int, device) -> list:
     net.to(device)
     criterion = nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9, weight_decay=0.0001)
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 0.5 ** (epoch // 5))
+
     net.train()
 
     for epoch in range(epochs):
@@ -121,12 +123,33 @@ def train(net: nn.Module, trainloader: DataLoader, epochs: int, device) -> list:
             outputs = net(images)
             loss = criterion(outputs, labels)
             loss.backward()
-
-            # Add gradient clipping
             torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=1.0)
-            
             optimizer.step()
+        scheduler.step()  # Step once per local epoch (not per batch)
+
     return get_weights(net)
+def train(net: nn.Module, trainloader: DataLoader, epochs: int, device) -> list:
+    net.to(device)
+    criterion = nn.CrossEntropyLoss().to(device)
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 0.5 ** (epoch // 1))
+
+    net.train()
+
+    for epoch in range(epochs):
+        for batch in trainloader:
+            images, labels = batch
+            images, labels = images.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = net(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=1.0)
+            optimizer.step()
+        scheduler.step()  # Step once per local epoch (not per batch)
+
+    return get_weights(net)
+
 def test(net: nn.Module, testloader: DataLoader, device) -> Tuple[float, float]:
     net.to(device)
     criterion = nn.CrossEntropyLoss()

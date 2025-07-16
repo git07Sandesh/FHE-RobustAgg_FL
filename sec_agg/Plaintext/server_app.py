@@ -179,7 +179,7 @@ class MetricsStrategyWrapper(Strategy):
         self.convergence_round = -1 # -1 means not converged yet
         self.total_aggregation_time = 0.0
         self.all_round_data = [] # To store detailed data for artifact
-
+	self.total_client_training_time = 0.0
     def initialize_parameters(self, client_manager):
         return self.base_strategy.initialize_parameters(client_manager)
 
@@ -205,6 +205,8 @@ class MetricsStrategyWrapper(Strategy):
             downlink_bytes = get_weights_size_bytes(parameters_to_ndarrays(aggregated_params))
             downlink_mb = downlink_bytes / (1024 * 1024)
 
+        per_round_client_training_time = sum(res.metrics.get("training_time", 0) for _, res in results)
+        self.total_client_training_time += per_round_client_training_time
         # --- 3. Log per-round metrics to W&B ---
         round_data = {
             "round": server_round,
@@ -212,6 +214,8 @@ class MetricsStrategyWrapper(Strategy):
             "uplink_mb": uplink_mb,
             "downlink_mb": downlink_mb,
             "total_aggregation_time": self.total_aggregation_time,
+	     "per_round_client_training_time": per_round_client_training_time,
+            "total_client_training_time": self.total_client_training_time,
         }
         wandb.log(round_data)
         
@@ -262,7 +266,8 @@ class MetricsStrategyWrapper(Strategy):
 
         summary_metrics = {
             "final_best_accuracy": self.best_accuracy,
-            "convergence_round": self.convergence_round,
+	    "final_total_client_training_time": self.total_client_training_time,
+	    "convergence_round": self.convergence_round,
             "final_total_aggregation_time": self.total_aggregation_time,
         }
         wandb.log(summary_metrics)

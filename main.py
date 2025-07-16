@@ -92,7 +92,7 @@ def main():
 
     # [NEW] Determine resources dynamically
     gpu_available = torch.cuda.is_available()
-    client_resources = {"num_cpus": 2, "num_gpus": 0.4 if gpu_available else 0.0}
+    client_resources = {"num_cpus": 2, "num_gpus": 0.5 if gpu_available else 0.0}
     print(f"🚀 Starting simulations with resources per client: {client_resources}")
 
 
