@@ -13,7 +13,7 @@ import torch
 # ----------------- Base Configuration -----------------
 # Define all common parameters here.
 BASE_CONFIG = {
-    "num_rounds": 30, # [MODIFIED] Increased for more meaningful convergence
+    "num_rounds": 150, # [MODIFIED] Increased for more meaningful convergence
     "local_epochs": 3,
     "alpha": 0.5,
     "num_partitions": 10,
@@ -27,15 +27,15 @@ BASE_CONFIG = {
 # [MODIFIED] Renamed for clarity
 STANDARD_EXPERIMENTS = [
      {"run_name": "fedavg_benign_f0_n10", "strategy": "FedAvg", "num_malicious": 0},
-     {"run_name": "fedavg_attack_f3_n10", "strategy": "FedAvg", "num_malicious": 3},
-     {"run_name": "krum_benign_f0_n10", "strategy": "Krum", "num_malicious": 0},
-     {"run_name": "krum_attack_f3_n10", "strategy": "Krum", "num_malicious": 3},
-     {"run_name": "multikrum_benign_f0_n10", "strategy": "MultiKrum", "num_malicious": 0},
-     {"run_name": "multikrum_attack_f3_n10", "strategy": "MultiKrum", "num_malicious": 3},
-     {"run_name": "trimmedmean_benign_f0_n10", "strategy": "TrimmedMean", "num_malicious": 0},
-     {"run_name": "trimmedmean_attack_f3_n10", "strategy": "TrimmedMean", "num_malicious": 3},
-     {"run_name": "bulyan_benign_f0_n10","strategy": "Bulyan", "num_malicious": 0,"bulyan_selection_size": 8, "trimmed_mean_beta": 1},
-     { "run_name": "bulyan_attack_f3_n10","strategy": "Bulyan", "num_malicious": 3, "bulyan_selection_size": 8, "trimmed_mean_beta": 1},
+#     {"run_name": "fedavg_attack_f3_n10", "strategy": "FedAvg", "num_malicious": 3},
+#     {"run_name": "krum_benign_f0_n10", "strategy": "Krum", "num_malicious": 0},
+#     {"run_name": "krum_attack_f3_n10", "strategy": "Krum", "num_malicious": 3},
+#     {"run_name": "multikrum_benign_f0_n10", "strategy": "MultiKrum", "num_malicious": 0},
+#     {"run_name": "multikrum_attack_f3_n10", "strategy": "MultiKrum", "num_malicious": 3},
+#     {"run_name": "trimmedmean_benign_f0_n10", "strategy": "TrimmedMean", "num_malicious": 0},
+#     {"run_name": "trimmedmean_attack_f3_n10", "strategy": "TrimmedMean", "num_malicious": 3},
+#     {"run_name": "bulyan_benign_f0_n10","strategy": "Bulyan", "num_malicious": 0,"bulyan_selection_size": 8, "trimmed_mean_beta": 1},
+#     { "run_name": "bulyan_attack_f3_n10","strategy": "Bulyan", "num_malicious": 3, "bulyan_selection_size": 8, "trimmed_mean_beta": 1},
 ]
 
 # [NEW] Idea 3: Scalability Analysis

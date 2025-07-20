@@ -178,15 +178,16 @@ class MetricsStrategyWrapper(Strategy):
         self.best_accuracy = 0.0
         self.convergence_round = -1 # -1 means not converged yet
         self.total_aggregation_time = 0.0
+        self.total_client_training_time = 0.0 # NEW: Initialize total client training time
         self.all_round_data = [] # To store detailed data for artifact
-	self.total_client_training_time = 0.0
+
     def initialize_parameters(self, client_manager):
         return self.base_strategy.initialize_parameters(client_manager)
 
     def configure_fit(self, server_round, parameters, client_manager):
         return self.base_strategy.configure_fit(server_round, parameters, client_manager)
 
-    def aggregate_fit(self, server_round, results, failures):
+    def aggregate_fit(self, server_round, results: List[Tuple[ClientProxy, FitRes]], failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],): # Type hints for clarity
         # --- 1. Time the aggregation step ---
         start_time = time.perf_counter()
         aggregated_params, agg_metrics = self.base_strategy.aggregate_fit(server_round, results, failures)
@@ -205,8 +206,10 @@ class MetricsStrategyWrapper(Strategy):
             downlink_bytes = get_weights_size_bytes(parameters_to_ndarrays(aggregated_params))
             downlink_mb = downlink_bytes / (1024 * 1024)
 
+        # NEW: Extract and sum client training time
         per_round_client_training_time = sum(res.metrics.get("training_time", 0) for _, res in results)
         self.total_client_training_time += per_round_client_training_time
+
         # --- 3. Log per-round metrics to W&B ---
         round_data = {
             "round": server_round,
@@ -214,7 +217,8 @@ class MetricsStrategyWrapper(Strategy):
             "uplink_mb": uplink_mb,
             "downlink_mb": downlink_mb,
             "total_aggregation_time": self.total_aggregation_time,
-	     "per_round_client_training_time": per_round_client_training_time,
+            # NEW: Add training time metrics
+            "per_round_client_training_time": per_round_client_training_time,
             "total_client_training_time": self.total_client_training_time,
         }
         wandb.log(round_data)
@@ -266,9 +270,9 @@ class MetricsStrategyWrapper(Strategy):
 
         summary_metrics = {
             "final_best_accuracy": self.best_accuracy,
-	    "final_total_client_training_time": self.total_client_training_time,
-	    "convergence_round": self.convergence_round,
+            "convergence_round": self.convergence_round,
             "final_total_aggregation_time": self.total_aggregation_time,
+            "final_total_client_training_time": self.total_client_training_time, # NEW: Add to summary
         }
         wandb.log(summary_metrics)
 
@@ -286,7 +290,7 @@ class MetricsStrategyWrapper(Strategy):
 
 
 # ==============================================================================
-# [MODIFIED] 2. The main builder function now uses the wrapper
+# The main builder function now uses the wrapper
 # ==============================================================================
 def build_strategy(run_config: dict) -> Strategy:
     run_name = run_config.get("run_name", "default_run")
@@ -303,7 +307,6 @@ def build_strategy(run_config: dict) -> Strategy:
     testloader = get_central_testloader()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
-    # This is now a pure function, logging is handled by the wrapper.
     def evaluate_fn(_: int, parameters: List[np.ndarray], __) -> Optional[Tuple[float, Dict[str, Scalar]]]:
         set_weights(net, parameters) 
         
@@ -311,7 +314,6 @@ def build_strategy(run_config: dict) -> Strategy:
         return loss, {"accuracy": acc}
 	
     def fit_config(server_round: int):
-        # Add the current round to the config and return the whole dictionary
         config_to_send = run_config.copy()
         config_to_send["round"] = server_round
         return config_to_send
@@ -319,10 +321,10 @@ def build_strategy(run_config: dict) -> Strategy:
     base_strategy: Strategy
     common_args = {
         "fraction_fit": 1.0,
-        "fraction_evaluate": 0.0, # Evaluate on all clients (not used by default eval_fn)
+        "fraction_evaluate": 0.0,
         "min_fit_clients": run_config["num_partitions"] - num_malicious,
         "min_available_clients": run_config["num_partitions"],
-        "evaluate_fn": evaluate_fn, # The corrected function is passed here
+        "evaluate_fn": evaluate_fn,
         "on_fit_config_fn": fit_config,
         "initial_parameters": initial_parameters,
     }
@@ -351,5 +353,4 @@ def build_strategy(run_config: dict) -> Strategy:
     else:
         raise ValueError(f"Unknown strategy: {strategy_name}")
         
-    # --- Wrap the base strategy with our metrics collector ---
     return MetricsStrategyWrapper(base_strategy=base_strategy, run_config=run_config)

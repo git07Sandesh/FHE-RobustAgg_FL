@@ -12,7 +12,7 @@ import itertools # NEW: To chain experiment lists
 # Define a base configuration for reuse
 # Note: num_malicious and num_partitions here will be overridden by specific experiment configs
 base_config = {
-    "num_rounds": 30,
+    "num_rounds": 150,
     "local_epochs": 3,
     "alpha": 0.5,
     "num_partitions": 10, # Default, will be overridden for scaling

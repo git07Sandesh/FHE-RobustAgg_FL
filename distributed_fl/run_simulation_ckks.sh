@@ -2,7 +2,7 @@
 #SBATCH --job-name=fl_ckks_simulation # [MODIFIED] New job name
 #SBATCH --output=/homes/01/sxbhattarai/sec-agg/logs/ckks_simulation_%j.out # [MODIFIED] New output log file
 #SBATCH --error=/homes/01/sxbhattarai/sec-agg/logs/ckks_simulation_%j.err   # [MODIFIED] New error log file
-#SBATCH --time=12:00:00           # [MODIFIED] SIGNIFICANTLY INCREASED TIME - adjust as needed, might need 24:00:00 or more
+#SBATCH --time=23:00:00           # [MODIFIED] SIGNIFICANTLY INCREASED TIME - adjust as needed, might need 24:00:00 or more
 #SBATCH --partition=gpu
 #SBATCH --nodes=1                 
 #SBATCH --cpus-per-task=16        # Keep high for Ray and FHE computations
@@ -28,3 +28,5 @@ export WANDB_API_KEY=$(awk '/^machine api.wandb.ai/{getline; print $2}' ~/.netrc
 /homes/01/sxbhattarai/miniconda3/envs/flwr_env_py310/bin/python "$PROJECT_HOME/main_ckks.py"
 
 echo "--- Flower CKKS Simulation Job Finished ---" # [MODIFIED]
+
+

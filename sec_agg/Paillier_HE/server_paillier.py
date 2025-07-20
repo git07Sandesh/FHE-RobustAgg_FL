@@ -5,9 +5,9 @@ import torch
 import time
 import pickle
 import numpy as np
-import os # Import os for artifact path
-import json # Import json for artifact data
-from typing import List, Tuple, Optional, Dict, Union # Added Union for failures
+import os
+import json
+from typing import List, Tuple, Optional, Dict, Union 
 
 from flwr.server.strategy import FedAvg, Strategy
 from flwr.server.client_proxy import ClientProxy
@@ -32,7 +32,7 @@ class PaillierFedAvg(FedAvg):
         self.sample_model = sample_model
 
     def aggregate_fit(
-        self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]], # Changed to Union
+        self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]], 
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
         if not results: return None, {}
         
@@ -80,7 +80,7 @@ class PaillierTrimmedMean(FedAvg):
         self.sample_model = sample_model
 
     def aggregate_fit(
-        self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]], # Changed to Union
+        self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]], 
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
         if not results: return None, {}
 
@@ -171,7 +171,7 @@ class PaillierMetricsStrategyWrapper(Strategy):
     def configure_fit(self, server_round, parameters, client_manager):
         return self.base_strategy.configure_fit(server_round, parameters, client_manager)
 
-    def aggregate_fit(self, server_round, results, failures):
+    def aggregate_fit(self, server_round, results: List[Tuple[ClientProxy, FitRes]], failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]]): # Type hints for clarity
         # --- 1. Time the aggregation step ---
         start_time = time.perf_counter()
         aggregated_params, agg_metrics = self.base_strategy.aggregate_fit(server_round, results, failures)
@@ -205,6 +205,7 @@ class PaillierMetricsStrategyWrapper(Strategy):
         expansion_factors = [res.metrics.get("expansion_factor", 0) for _, res in results]
         avg_expansion_factor = np.mean(expansion_factors) if expansion_factors else 0
 
+        # NEW: Extract and sum client training time
         per_round_client_training_time = sum(res.metrics.get("training_time", 0) for _, res in results)
         self.total_client_training_time += per_round_client_training_time
 
@@ -222,6 +223,7 @@ class PaillierMetricsStrategyWrapper(Strategy):
             "per_round_avg_expansion_factor": avg_expansion_factor,
             "num_clients_participated": num_successful_clients,
             "num_clients_failed": len(failures),
+            # NEW: Add training time metrics
             "per_round_client_training_time": per_round_client_training_time,
             "total_client_training_time": self.total_client_training_time,
         }

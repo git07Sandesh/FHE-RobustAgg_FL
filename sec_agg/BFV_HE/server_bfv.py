@@ -6,7 +6,7 @@ import time
 import numpy as np
 import os
 import json
-from typing import List, Tuple, Optional, Dict, Union # Added Union for failures
+from typing import List, Tuple, Optional, Dict, Union 
 
 import tenseal as ts
 from flwr.server.strategy import FedAvg, Strategy
@@ -33,7 +33,7 @@ class BFVFedAvg(FedAvg):
         self.precision_bits = precision_bits
 
     def aggregate_fit(
-        self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]], # Changed any to Union
+        self, server_round: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]], 
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
         if not results: return None, {}
         
@@ -42,8 +42,6 @@ class BFVFedAvg(FedAvg):
         if total_examples == 0: return None, {}
 
         # Decrypt all client updates
-        # This decryption is implicitly part of the overall aggregation_time measured by the wrapper.
-        # We will explicitly measure the *final* model decryption.
         client_updates_encoded = []
         for _, res in results:
             uint8_array = parameters_to_ndarrays(res.parameters)[0]
@@ -56,9 +54,6 @@ class BFVFedAvg(FedAvg):
         averaged_encoded_vector = np.round(summed_weighted_updates / total_examples).astype(np.int64)
 
         # --- Measure server-side decryption time (final result) ---
-        # Note: BFVFedAvg directly uses the decrypted average, so the decryption time is effectively
-        # distributed among the initial decryptions. For consistency with CKKS and to measure
-        # the 'final model' decryption, we'll decode here and consider it the "final decryption" step.
         dec_start = time.perf_counter()
         decoded_flat_weights = decode(averaged_encoded_vector.tolist(), self.precision_bits)
         dec_end = time.perf_counter()
@@ -86,25 +81,14 @@ class BFVTrimmedMean(FedAvg):
         indexed_norms = sorted(enumerate(norms), key=lambda x: x[1])
         
         num_to_trim = self.b
-        num_clients_available = len(indexed_norms)
-        
-        if num_to_trim == 0:
-                # If no malicious clients, no trimming should occur; keep all.
-            indices_to_keep = list(range(num_clients_available))
-            print(f"TrimmedMean: Benign scenario, keeping all {len(indices_to_keep)} clients.")
-        elif num_clients_available <= 2 * num_to_trim:
-            # If not enough clients to trim from both sides, or trimming would remove too many,
-            # (e.g., if N=10, b=4, then 2*b=8. N=10 > 2*b=8. If N=7, b=4, then 2*b=8. N=7 <= 2*b=8)
-            # In such cases, standard Trimmed Mean might fail or require a fallback.
-            # For now, we'll keep all as a safer default than discarding completely.
-            indices_to_keep = list(range(num_clients_available))
-            print(f"Warning: TrimmedMean intended to trim {num_to_trim} from each side but only {num_clients_available} clients available. Keeping all clients due to insufficient count.")
+        if len(indexed_norms) <= 2 * num_to_trim:
+            indices_to_keep = list(range(len(indexed_norms)))
         else:
-            # Standard trimming: remove 'num_to_trim' from each end
             untrimmed_indices = [i for i, _ in indexed_norms]
             indices_to_keep = untrimmed_indices[num_to_trim : -num_to_trim]
-            print(f"TrimmedMean: Trimmed {num_to_trim} clients from each side, keeping {len(indices_to_keep)}.")
-                   
+
+        print(f"BFVTrimmedMean kept {len(indices_to_keep)} clients: {indices_to_keep}")
+        
         # Safety check: if no clients are kept, return None
         if not indices_to_keep:
             print("BFVTrimmedMean: No clients left after trimming. Discarding update.")
@@ -150,7 +134,7 @@ class BFVMetricsStrategyWrapper(Strategy):
         self.total_aggregation_time = 0.0
         self.total_client_encryption_time = 0.0  # Sum of client-reported encryption times
         self.total_server_decryption_time = 0.0  # Sum of server-side decryption times
-        self.total_client_training_time = 0.0
+        self.total_client_training_time = 0.0 # NEW: Initialize total client training time
         self.all_round_data = [] # To store detailed data for artifact
 
     def initialize_parameters(self, client_manager):
@@ -159,7 +143,7 @@ class BFVMetricsStrategyWrapper(Strategy):
     def configure_fit(self, server_round, parameters, client_manager):
         return self.base_strategy.configure_fit(server_round, parameters, client_manager)
 
-    def aggregate_fit(self, server_round, results, failures):
+    def aggregate_fit(self, server_round, results: List[Tuple[ClientProxy, FitRes]], failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]]): # Type hints for clarity
         # --- 1. Time the aggregation step ---
         start_time = time.perf_counter()
         aggregated_params, agg_metrics = self.base_strategy.aggregate_fit(server_round, results, failures)
@@ -193,6 +177,7 @@ class BFVMetricsStrategyWrapper(Strategy):
         expansion_factors = [res.metrics.get("expansion_factor", 0) for _, res in results]
         avg_expansion_factor = np.mean(expansion_factors) if expansion_factors else 0
 
+        # NEW: Extract and sum client training time
         per_round_client_training_time = sum(res.metrics.get("training_time", 0) for _, res in results)
         self.total_client_training_time += per_round_client_training_time
 
@@ -210,6 +195,7 @@ class BFVMetricsStrategyWrapper(Strategy):
             "per_round_avg_expansion_factor": avg_expansion_factor,
             "num_clients_participated": num_successful_clients,
             "num_clients_failed": len(failures),
+            # NEW: Add training time metrics
             "per_round_client_training_time": per_round_client_training_time,
             "total_client_training_time": self.total_client_training_time,
         }
@@ -267,7 +253,7 @@ class BFVMetricsStrategyWrapper(Strategy):
             "final_total_client_encryption_time": self.total_client_encryption_time,
             "final_total_server_decryption_time": self.total_server_decryption_time,
             "final_total_fhe_time": self.total_client_encryption_time + self.total_server_decryption_time,
-            "final_total_client_training_time": self.total_client_training_time,
+            "final_total_client_training_time": self.total_client_training_time, # NEW: Add to summary
         }
         wandb.log(summary_metrics)
 
